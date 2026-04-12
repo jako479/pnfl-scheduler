@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.pdb
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
+.tox/
+.venv*/
+.venv/
+.env/
+env/
+.rye/
+.python-version
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Node/Prettier stuff (if present)
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# AI
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
