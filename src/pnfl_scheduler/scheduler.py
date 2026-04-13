@@ -66,15 +66,20 @@ def solve_schedule(
     C1  At most one orientation per (i,j) per week.
     C2  Each team plays exactly one game per week.
     C3  Each team has exactly 8 home games across the season.
-    C4  Every intra-division pair meets exactly twice, split 1 home / 1 away per side.
+    C4  Every divisional pair meets exactly twice, split 1 home / 1 away per side.
     C5  Intra-conference cross-division pairs meet exactly once; non-conference at most once.
-    C6  Max 3 consecutive home games; a 3-streak at most once per season. Same for away.
-    C7  Max 3 consecutive intra-division games; a 3-streak at most once per season.
-    C8  No more than 4 intra-division games in any 6-game span.
-    C9  No more than 5 intra-division games in any 8-game span.
-    C10 Last week: 8 intra-division games + 1 inter-division between the two
+    C6  No back-to-back games between the same two teams.
+    C7  Max 3 consecutive home games; a 3-streak at most once per season. Same for away.
+    C8  Max 3 consecutive divisional games; a 3-streak at most once per season.
+    C9  No more than 4 divisional games in any 6-game span.
+    C10 No more than 5 divisional games in any 8-game span.
+    C11 No more than 2 divisional games in the first 3 weeks.
+    C12 Divisional opponent interleaving: at least one pair of divisional
+        opponents must have their games interleaved (no AABBCC patterns).
+    C13 COMMENTED OUT — close rematch cap.
+    C14 Last week: 8 divisional games + 1 inter-division between the two
         last-place 5-team-division teams.
-    C11 Strength of schedule: division winners play both non-conference division
+    C15 Strength of schedule: division winners play both non-conference division
         winners plus one non-conference wild card. Wild cards play one non-conference
         division winner plus both non-conference wild cards. Non-playoff teams face
         at most one non-conference division winner. Each non-playoff team faces exactly
@@ -130,7 +135,7 @@ def solve_schedule(
             else:
                 inter_div_pairs.append((i, j))
 
-    # C4: every intra-division pair meets exactly twice, split 1H/1A per side
+    # C4: every divisional pair meets exactly twice, split 1H/1A per side
     for i, j in intra_div_pairs:
         model.add(sum(x[i, j, w] for w in weeks) == 1)
         model.add(sum(x[j, i, w] for w in weeks) == 1)
@@ -151,7 +156,17 @@ def solve_schedule(
     for i, j in non_conf_pairs:
         model.add(sum(x[i, j, w] + x[j, i, w] for w in weeks) <= 1)
 
-    # C6: max 3 consecutive home games, and a 3-streak can happen at most once per season.
+    # C6: no back-to-back games between the same two teams
+    for i in team_ids:
+        for j in team_ids:
+            if i >= j:
+                continue
+            for w in range(NUM_WEEKS - 1):
+                model.add(
+                    x[i, j, w] + x[j, i, w] + x[i, j, w + 1] + x[j, i, w + 1] <= 1
+                )
+
+    # C7: max 3 consecutive home games, and a 3-streak can happen at most once per season.
     # Same for away games. A "home indicator" h[i,w] = 1 iff team i is home in week w.
     h: dict[tuple[int, int], cp_model.IntVar] = {}
     for i in team_ids:
@@ -192,7 +207,7 @@ def solve_schedule(
             streak3a.append(s)
         model.add(sum(streak3a) <= 1)
 
-    # C7: max 3 consecutive intra-division games, and a 3-streak at most once per season.
+    # C8: max 3 consecutive divisional games, and a 3-streak at most once per season.
     # d[i,w] = 1 iff team i plays a division opponent in week w.
     div_opponents = {}
     for t in TEAMS:
@@ -223,17 +238,66 @@ def solve_schedule(
             streak3d.append(s)
         model.add(sum(streak3d) <= 1)
 
-    # C8: no more than 4 intra-division games in any 6-game span
+    # C9: no more than 4 divisional games in any 6-game span
     for i in team_ids:
         for w in range(NUM_WEEKS - 5):
             model.add(sum(d[i, w + k] for k in range(6)) <= 4)
 
-    # C9: no more than 5 intra-division games in any 8-game span
+    # C10: no more than 5 divisional games in any 8-game span
     for i in team_ids:
         for w in range(NUM_WEEKS - 7):
             model.add(sum(d[i, w + k] for k in range(8)) <= 5)
 
-    # C11: strength of schedule — playoff-based non-conference matchups
+    # C11: no more than 2 divisional games in the first 3 weeks
+    for i in team_ids:
+        model.add(d[i, 0] + d[i, 1] + d[i, 2] <= 2)
+
+    # C12: divisional opponent interleaving — for each team, the latest "first
+    # meeting" across all divisional opponents must come before the earliest
+    # "second meeting". This guarantees at least one opponent's games are
+    # interleaved with another's (prevents AABBCC patterns).
+    for i in team_ids:
+        opps = div_opponents[i]
+        first_meet: list[cp_model.IntVar] = []
+        second_meet: list[cp_model.IntVar] = []
+        for j in opps:
+            wh = model.new_int_var(0, NUM_WEEKS - 1, f"wh_{i}_{j}")
+            wa = model.new_int_var(0, NUM_WEEKS - 1, f"wa_{i}_{j}")
+            model.add(wh == sum(w * x[i, j, w] for w in weeks))
+            model.add(wa == sum(w * x[j, i, w] for w in weeks))
+            w1 = model.new_int_var(0, NUM_WEEKS - 1, f"fm_{i}_{j}")
+            w2 = model.new_int_var(0, NUM_WEEKS - 1, f"sm_{i}_{j}")
+            model.add_min_equality(w1, [wh, wa])
+            model.add_max_equality(w2, [wh, wa])
+            first_meet.append(w1)
+            second_meet.append(w2)
+
+        # If max(first meetings) < min(second meetings), at least two opponents'
+        # intervals overlap, guaranteeing interleaving.
+        latest_first = model.new_int_var(0, NUM_WEEKS - 1, f"lf_{i}")
+        earliest_second = model.new_int_var(0, NUM_WEEKS - 1, f"es_{i}")
+        model.add_max_equality(latest_first, first_meet)
+        model.add_min_equality(earliest_second, second_meet)
+        model.add(latest_first < earliest_second)
+
+    # C13: COMMENTED OUT — close rematch cap. May be re-enabled later.
+    # At most one divisional pair league-wide can have both meetings
+    # fall within a 3-week span.
+    # close_pair: list[cp_model.IntVar] = []
+    # for i, j in intra_div_pairs:
+    #     week_a = sum(w * x[i, j, w] for w in weeks)
+    #     week_b = sum(w * x[j, i, w] for w in weeks)
+    #     gap = model.new_int_var(0, NUM_WEEKS - 1, f"gap_{i}_{j}")
+    #     diff = model.new_int_var(-(NUM_WEEKS - 1), NUM_WEEKS - 1, f"diff_{i}_{j}")
+    #     model.add(diff == week_a - week_b)
+    #     model.add_abs_equality(gap, diff)
+    #     close = model.new_bool_var(f"close_{i}_{j}")
+    #     model.add(gap <= 2).only_enforce_if(close)
+    #     model.add(gap >= 3).only_enforce_if(close.Not())
+    #     close_pair.append(close)
+    # model.add(sum(close_pair) <= 1)
+
+    # C15: strength of schedule — playoff-based non-conference matchups
     if playoffs is not None:
         playoffs.validate()
         div_winners, wild_cards = playoffs.resolved()
@@ -319,7 +383,7 @@ def solve_schedule(
                     == target
                 )
 
-    # C10: last week has exactly 8 intra-division games and 1 inter-division game
+    # C14: last week has exactly 8 divisional games and 1 inter-division game
     # between the two last-place teams from the 5-team divisions.
     last_week = NUM_WEEKS - 1
     model.add(
