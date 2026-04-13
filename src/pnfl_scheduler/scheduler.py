@@ -72,8 +72,8 @@ class _ScheduleModel:
         at most one non-conference division winner. Each non-playoff team faces exactly
         1 or 2 non-conference playoff opponents (determined by available slots);
         highest-ranked non-playoff teams get 2.
-    C13 Last week: 8 divisional games + 1 inter-division between the two
-        last-place 5-team-division teams.
+    C13 Week 16: 8 divisional games + 1 non-conference game between the two
+        last-place teams in the five-team divisions.
     """
 
     def __init__(self) -> None:
@@ -138,9 +138,8 @@ class _ScheduleModel:
             for w in self.weeks:
                 self.d[i, w] = self.model.new_bool_var(f"d_{i}_w{w}")
                 self.model.add(
-                    self.d[i, w] == sum(
-                        self.x[i, j, w] + self.x[j, i, w] for j in self.div_opponents[i]
-                    )
+                    self.d[i, w]
+                    == sum(self.x[i, j, w] + self.x[j, i, w] for j in self.div_opponents[i])
                 )
 
     def _c1_one_game_per_week(self) -> None:
@@ -175,8 +174,10 @@ class _ScheduleModel:
                     continue
                 for w in range(NUM_WEEKS - 1):
                     self.model.add(
-                        self.x[i, j, w] + self.x[j, i, w]
-                        + self.x[i, j, w + 1] + self.x[j, i, w + 1]
+                        self.x[i, j, w]
+                        + self.x[j, i, w]
+                        + self.x[i, j, w + 1]
+                        + self.x[j, i, w + 1]
                         <= 1
                     )
 
@@ -358,13 +359,10 @@ class _ScheduleModel:
                     == target
                 )
 
-    def _c13_last_week(self, last_place: tuple[str, str] | None) -> None:
+    def _c13_week_16_matchups(self, last_place: tuple[str, str] | None) -> None:
         last_week = NUM_WEEKS - 1
         self.model.add(
-            sum(
-                self.x[i, j, last_week] + self.x[j, i, last_week]
-                for i, j in self.intra_div_pairs
-            )
+            sum(self.x[i, j, last_week] + self.x[j, i, last_week] for i, j in self.intra_div_pairs)
             == 8
         )
 
@@ -399,7 +397,7 @@ class _ScheduleModel:
         self._c11_interleaving()
         if playoffs is not None:
             self._c12_strength_of_schedule(playoffs, non_playoff_ranked)
-        self._c13_last_week(last_place)
+        self._c13_week_16_matchups(last_place)
 
     def solve(self, seed: int = 0, time_limit: float = 1800.0) -> Schedule:
         solver = cp_model.CpSolver()
