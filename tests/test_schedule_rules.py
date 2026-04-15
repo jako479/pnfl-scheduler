@@ -1,8 +1,8 @@
-from pnfl_scheduler.teams import TEAMS, NUM_WEEKS, Division, lookup_team
+from pnfl_scheduler.teams import Division, NUM_WEEKS, TEAMS, lookup_team
 
 
 def test_each_team_plays_exactly_one_game_per_week(schedule):
-    """C1: each team plays exactly one game per week."""
+    """Each team plays exactly one game per week."""
     for team in TEAMS:
         for w in range(1, NUM_WEEKS + 1):
             games = [g for g in schedule.games_for(team) if g.week == w]
@@ -10,7 +10,7 @@ def test_each_team_plays_exactly_one_game_per_week(schedule):
 
 
 def test_each_team_has_equal_home_and_away_games(schedule):
-    """C2: every team plays the same number of home and away games."""
+    """Every team plays the same number of home and away games."""
     for team in TEAMS:
         home = len(schedule.home_games_for(team))
         away = len(schedule.away_games_for(team))
@@ -18,7 +18,7 @@ def test_each_team_has_equal_home_and_away_games(schedule):
 
 
 def test_each_team_plays_division_opponents_twice_home_and_away(schedule):
-    """C3: every division pairing happens exactly twice — once home, once away."""
+    """Every division pairing happens exactly twice, once home and once away."""
     for division in Division:
         div_teams = [t for t in TEAMS if t.division == division]
         for i, team_a in enumerate(div_teams):
@@ -34,7 +34,7 @@ def test_each_team_plays_division_opponents_twice_home_and_away(schedule):
 
 
 def test_same_conference_cross_division_pairs_meet_exactly_once(schedule):
-    """C4: every same-conference cross-division pair meets exactly once."""
+    """Every same-conference cross-division pair meets exactly once."""
     for i, team_a in enumerate(TEAMS):
         for team_b in TEAMS[i + 1 :]:
             if team_a.division == team_b.division:
@@ -48,7 +48,7 @@ def test_same_conference_cross_division_pairs_meet_exactly_once(schedule):
 
 
 def test_non_conference_pairs_meet_at_most_once(schedule):
-    """C4: every non-conference pair meets at most once."""
+    """Every non-conference pair meets at most once."""
     for i, team_a in enumerate(TEAMS):
         for team_b in TEAMS[i + 1 :]:
             if team_a.conference == team_b.conference:
@@ -60,7 +60,7 @@ def test_non_conference_pairs_meet_at_most_once(schedule):
 
 
 def test_no_back_to_back_games_between_same_teams(schedule):
-    """C5: two teams cannot play each other in consecutive weeks."""
+    """Two teams cannot play each other in consecutive weeks."""
     for i, team_a in enumerate(TEAMS):
         for team_b in TEAMS[i + 1 :]:
             meetings = schedule.games_between(team_a, team_b)
@@ -122,14 +122,14 @@ def _count_streaks_of(pattern, length):
 
 
 def test_no_more_than_three_consecutive_home_games(schedule):
-    """C6: max home streak is 3."""
+    """The maximum home streak is 3."""
     for team in TEAMS:
         streak = _max_streak(_home_pattern(schedule, team))
         assert streak <= 3, f"{team.city}: {streak} consecutive home games"
 
 
 def test_no_more_than_three_consecutive_away_games(schedule):
-    """C6: max away streak is 3."""
+    """The maximum away streak is 3."""
     for team in TEAMS:
         away = [not h for h in _home_pattern(schedule, team)]
         streak = _max_streak(away)
@@ -137,14 +137,14 @@ def test_no_more_than_three_consecutive_away_games(schedule):
 
 
 def test_three_home_streak_at_most_once(schedule):
-    """C6: a 3-game home streak can happen at most once per season."""
+    """A 3-game home streak can happen at most once per season."""
     for team in TEAMS:
         count = _count_streaks_of(_home_pattern(schedule, team), 3)
         assert count <= 1, f"{team.city}: {count} home streaks of 3+"
 
 
 def test_three_away_streak_at_most_once(schedule):
-    """C6: a 3-game away streak can happen at most once per season."""
+    """A 3-game away streak can happen at most once per season."""
     for team in TEAMS:
         away = [not h for h in _home_pattern(schedule, team)]
         count = _count_streaks_of(away, 3)
@@ -152,14 +152,14 @@ def test_three_away_streak_at_most_once(schedule):
 
 
 def test_no_more_than_two_consecutive_division_games(schedule):
-    """C7: max 2 consecutive divisional games."""
+    """Teams cannot have more than 2 consecutive divisional games."""
     for team in TEAMS:
         streak = _max_streak(_div_pattern(schedule, team))
         assert streak <= 2, f"{team.city}: {streak} consecutive division games"
 
 
 def test_max_seven_division_games_in_eleven_game_span_five_team_div(schedule):
-    """C9: 5-team divisions — no more than 7 divisional games in any 11-game window."""
+    """Five-team divisions cannot have more than 7 divisional games in any 11-game window."""
     five_team_teams = [t for t in TEAMS if t.division in (Division.AFC_WEST, Division.NFC_WEST)]
     for team in five_team_teams:
         pattern = _div_pattern(schedule, team)
@@ -171,7 +171,7 @@ def test_max_seven_division_games_in_eleven_game_span_five_team_div(schedule):
 
 
 def test_max_five_division_games_in_eight_game_span_four_team_div(schedule):
-    """C9: 4-team divisions — no more than 5 divisional games in any 8-game window."""
+    """Four-team divisions cannot have more than 5 divisional games in any 8-game window."""
     four_team_teams = [t for t in TEAMS if t.division in (Division.AFC_EAST, Division.NFC_EAST)]
     for team in four_team_teams:
         pattern = _div_pattern(schedule, team)
@@ -183,7 +183,7 @@ def test_max_five_division_games_in_eight_game_span_four_team_div(schedule):
 
 
 def test_no_consecutive_divisional_games_in_first_two_weeks(schedule):
-    """C8: no team opens the season with consecutive divisional matchups."""
+    """No team opens the season with consecutive divisional matchups."""
     for team in TEAMS:
         pattern = _div_pattern(schedule, team)
         assert pattern[0] + pattern[1] <= 1, (
@@ -192,7 +192,7 @@ def test_no_consecutive_divisional_games_in_first_two_weeks(schedule):
 
 
 def test_at_least_half_divisional_games_in_second_half(schedule):
-    """C10: at least half of each team's divisional games fall in the last 8 weeks."""
+    """At least half of each team's divisional games fall in the last 8 weeks."""
     second_half_start = NUM_WEEKS // 2
     for team in TEAMS:
         pattern = _div_pattern(schedule, team)
@@ -207,19 +207,16 @@ def test_at_least_half_divisional_games_in_second_half(schedule):
 
 
 def test_divisional_opponent_interleaving(schedule):
-    """C11: at least 1 divisional opponent must have a different opponent's game
-    between their two meetings."""
+    """At least 2 divisional opponents must have another opponent's game between meetings."""
     min_interleaved = 2
     for team in TEAMS:
         div_opps = [t for t in TEAMS if t.division == team.division and t != team]
-        # For each opponent, find the weeks of the two meetings
         meeting_weeks = {}
         for opp in div_opps:
             meetings = schedule.games_between(team, opp)
             assert len(meetings) == 2
             meeting_weeks[opp] = sorted(g.week for g in meetings)
 
-        # Opponent is interleaved if any other opponent has a game between its two meetings
         interleaved = 0
         for opp in div_opps:
             first, second = meeting_weeks[opp]
@@ -242,14 +239,14 @@ def test_divisional_opponent_interleaving(schedule):
 
 
 def test_last_week_has_eight_intra_division_games(schedule):
-    """C13: week 16 has exactly 8 divisional games and 1 inter-division."""
+    """Week 16 has exactly 8 divisional games and 1 inter-division game."""
     last_week_games = [g for g in schedule.games if g.week == NUM_WEEKS]
     intra = sum(1 for g in last_week_games if g.home.division == g.away.division)
     assert intra == 8, f"Week {NUM_WEEKS}: {intra} divisional games, expected 8"
 
 
 def test_last_week_inter_division_game_is_last_place_matchup(schedule, standings_data):
-    """C13: the inter-division game in the last week is between the two last-place teams."""
+    """The inter-division game in the last week is between the two last-place teams."""
     last_week_games = [g for g in schedule.games if g.week == NUM_WEEKS]
     inter_games = [g for g in last_week_games if g.home.division != g.away.division]
     assert len(inter_games) == 1
@@ -263,7 +260,7 @@ def test_last_week_inter_division_game_is_last_place_matchup(schedule, standings
 
 
 def test_division_winners_play_both_non_conference_division_winners(schedule, standings_data):
-    """C12: each division winner plays both division winners from the other conference."""
+    """Each division winner plays both division winners from the other conference."""
     div_winners, _ = standings_data["playoffs"].resolved()
     for team in div_winners:
         other_dws = [t for t in div_winners if t.conference != team.conference]
@@ -275,7 +272,7 @@ def test_division_winners_play_both_non_conference_division_winners(schedule, st
 
 
 def test_division_winners_play_exactly_one_non_conference_wild_card(schedule, standings_data):
-    """C12: each division winner plays exactly 1 wild card from the other conference."""
+    """Each division winner plays exactly 1 wild card from the other conference."""
     div_winners, wild_cards = standings_data["playoffs"].resolved()
     for team in div_winners:
         other_wcs = [t for t in wild_cards if t.conference != team.conference]
@@ -286,7 +283,7 @@ def test_division_winners_play_exactly_one_non_conference_wild_card(schedule, st
 
 
 def test_wild_cards_play_exactly_one_non_conference_division_winner(schedule, standings_data):
-    """C12: each wild card plays exactly 1 division winner from the other conference."""
+    """Each wild card plays exactly 1 division winner from the other conference."""
     div_winners, wild_cards = standings_data["playoffs"].resolved()
     for team in wild_cards:
         other_dws = [t for t in div_winners if t.conference != team.conference]
@@ -297,7 +294,7 @@ def test_wild_cards_play_exactly_one_non_conference_division_winner(schedule, st
 
 
 def test_wild_cards_play_both_non_conference_wild_cards(schedule, standings_data):
-    """C12: each wild card plays both wild cards from the other conference."""
+    """Each wild card plays both wild cards from the other conference."""
     _, wild_cards = standings_data["playoffs"].resolved()
     for team in wild_cards:
         other_wcs = [t for t in wild_cards if t.conference != team.conference]
@@ -309,7 +306,7 @@ def test_wild_cards_play_both_non_conference_wild_cards(schedule, standings_data
 
 
 def test_non_playoff_teams_face_at_most_one_non_conference_division_winner(schedule, standings_data):
-    """C12: non-playoff teams face at most 1 non-conference division winner."""
+    """Non-playoff teams face at most 1 non-conference division winner."""
     div_winners, wild_cards = standings_data["playoffs"].resolved()
     all_playoff = set(div_winners + wild_cards)
     for team in TEAMS:
@@ -322,9 +319,13 @@ def test_non_playoff_teams_face_at_most_one_non_conference_division_winner(sched
         )
 
 
-def test_non_playoff_teams_face_exact_number_of_non_conference_playoff_opponents(schedule, standings_data):
-    """C12: each non-playoff team faces exactly 1 or 2 non-conference playoff opponents,
-    determined by rank. Highest-ranked absorb overflow, rest get exactly 1."""
+def test_non_playoff_teams_face_exact_number_of_non_conference_playoff_opponents(
+    schedule, standings_data
+):
+    """Each non-playoff team faces exactly 1 or 2 non-conference playoff opponents.
+
+    Highest-ranked teams absorb the overflow and the rest get exactly 1.
+    """
     div_winners, wild_cards = standings_data["playoffs"].resolved()
     all_playoff = div_winners + wild_cards
     np_ranked = [lookup_team(c) for c in standings_data["non_playoff_ranked"]]

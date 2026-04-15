@@ -37,12 +37,12 @@ for i in team_ids:
         for w in weeks:
             x[i, j, w] = model.new_bool_var(f"x_{i}_{j}_{w}")
 
-# C1
+# One game per week
 for i in team_ids:
     for w in weeks:
         model.add(sum(x[i, j, w] + x[j, i, w] for j in team_ids if j != i) == 1)
 
-# C2
+# Home balance
 for i in team_ids:
     model.add(sum(x[i, j, w] for j in team_ids if j != i for w in weeks) == home_games)
 
@@ -57,12 +57,12 @@ for i in team_ids:
         else:
             inter_div.append((i, j))
 
-# C3
+# Divisional home-and-away matchups
 for i, j in intra_div:
     model.add(sum(x[i, j, w] for w in weeks) == 1)
     model.add(sum(x[j, i, w] for w in weeks) == 1)
 
-# C4
+# Cross-division matchup counts
 intra_conf = []
 non_conf = []
 for i, j in inter_div:
@@ -75,7 +75,7 @@ for i, j in intra_conf:
 for i, j in non_conf:
     model.add(sum(x[i, j, w] + x[j, i, w] for w in weeks) <= 1)
 
-# C5
+# No back-to-back rematches
 for i in team_ids:
     for j in team_ids:
         if i >= j:
@@ -83,7 +83,7 @@ for i in team_ids:
         for w in range(NUM_WEEKS - 1):
             model.add(x[i, j, w] + x[j, i, w] + x[i, j, w + 1] + x[j, i, w + 1] <= 1)
 
-# C6
+# Home and away streak limits
 h = {}
 for i in team_ids:
     for w in weeks:
@@ -113,7 +113,7 @@ for i in team_ids:
         streak3a.append(s)
     model.add(sum(streak3a) <= 1)
 
-# C7
+# Maximum consecutive divisional games
 div_opponents = {}
 for t in TEAMS:
     div_opponents[t.id] = [o.id for o in TEAMS if o.division == t.division and o.id != t.id]
@@ -128,11 +128,11 @@ for i in team_ids:
     for w in range(NUM_WEEKS - 2):
         model.add(d[i, w] + d[i, w + 1] + d[i, w + 2] <= 2)
 
-# C8
+# No divisional opener in both weeks 1 and 2
 for i in team_ids:
     model.add(d[i, 0] + d[i, 1] <= 1)
 
-# C9
+# Divisional density caps
 four_team_ids = {t.id for t in TEAMS if t.division in (Division.AFC_EAST, Division.NFC_EAST)}
 five_team_ids = {t.id for t in TEAMS if t.division in (Division.AFC_WEST, Division.NFC_WEST)}
 for i in five_team_ids:
@@ -142,14 +142,14 @@ for i in four_team_ids:
     for w in range(NUM_WEEKS - 7):
         model.add(sum(d[i, w + k] for k in range(8)) <= 5)
 
-# C10
+# Second-half divisional minimums
 second_half = range(NUM_WEEKS // 2, NUM_WEEKS)
 for i in five_team_ids:
     model.add(sum(d[i, w] for w in second_half) >= 4)
 for i in four_team_ids:
     model.add(sum(d[i, w] for w in second_half) >= 3)
 
-# C11 interleaving
+# Divisional interleaving
 for i in team_ids:
     opps = div_opponents[i]
     fm = []
@@ -171,14 +171,14 @@ for i in team_ids:
     model.add_min_equality(es, sm)
     model.add(lf < es)
 
-# C13 last week
+# Final-week matchup pattern
 last_week = NUM_WEEKS - 1
 model.add(sum(x[i, j, last_week] + x[j, i, last_week] for i, j in intra_div) == 8)
 lp_a = lookup_team(LAST_PLACE[0])
 lp_b = lookup_team(LAST_PLACE[1])
 model.add(x[lp_a.id, lp_b.id, last_week] + x[lp_b.id, lp_a.id, last_week] == 1)
 
-# C12 strength of schedule
+# Strength of schedule
 dw = [lookup_team(c) for c in PLAYOFFS_DW]
 wc = [lookup_team(c) for c in PLAYOFFS_WC]
 
