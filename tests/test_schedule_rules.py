@@ -179,8 +179,7 @@ def test_at_least_half_divisional_games_in_second_half(schedule):
 
 
 def test_divisional_opponent_interleaving(schedule):
-    """At least 2 divisional opponents must have another opponent's game between meetings."""
-    min_interleaved = 2
+    """At most 2 divisional opponents may have no other opponent's game between meetings."""
     for team in TEAMS:
         div_opps = [t for t in TEAMS if t.division == team.division and t != team]
         meeting_weeks = {}
@@ -205,8 +204,9 @@ def test_divisional_opponent_interleaving(schedule):
             if has_game_between:
                 interleaved += 1
 
-        assert interleaved >= min_interleaved, (
-            f"{team.city}: {interleaved} interleaved opponents, expected >= {min_interleaved}"
+        non_interleaved = len(div_opps) - interleaved
+        assert non_interleaved <= 2, (
+            f"{team.city}: {non_interleaved} non-interleaved opponents, expected <= 2"
         )
 
 

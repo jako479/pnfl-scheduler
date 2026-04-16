@@ -223,7 +223,7 @@ def test_at_least_half_of_divisional_games_are_in_second_half(schedule):
         )
 
 
-def test_at_least_two_divisional_opponents_are_interleaved(schedule):
+def test_at_most_two_divisional_opponents_are_non_interleaved(schedule):
     for team in TEAMS:
         divisional_meeting_weeks: dict[int, list[int]] = {}
         for game in schedule.games_for(team):
@@ -243,8 +243,9 @@ def test_at_least_two_divisional_opponents_are_interleaved(schedule):
             if has_other_meeting_between:
                 interleaved_opponents += 1
 
-        assert interleaved_opponents >= 2, (
-            f"{team.city}: only {interleaved_opponents} divisional opponents are interleaved"
+        non_interleaved_opponents = len(divisional_meeting_weeks) - interleaved_opponents
+        assert non_interleaved_opponents <= 2, (
+            f"{team.city}: {non_interleaved_opponents} divisional opponents are non-interleaved"
         )
 
 

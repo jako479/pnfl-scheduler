@@ -30,7 +30,7 @@ Divisional scheduling requirements:
 - 5-team divisions: max 7 divisional games in any 10-game span and no 7 in any 9-game span.
 - 4-team divisions: max 5 divisional games in any 8-game span and no 4 in any 7-game span.
 - At least half of each team's divisional games must occur in the second half of the season.
-- At least 2 divisional opponents must be interleaved between a team's 2 meetings with another rival.
+- At most 2 divisional opponents may be non-interleaved between a team's 2 meetings with that rival.
 - Every team must play at least 1 divisional game in the final 2 weeks.
 - Week 16 must contain exactly 8 divisional games.
 
@@ -437,8 +437,8 @@ class _ScheduleModel:
         max 5 divisional games in any 8-game span and no 4 divisional games in any
         7-game span.
     C12 At least half of each team's divisional games fall in the last half of the season.
-    C13 Divisional opponent interleaving: at least 2 opponents must have a different
-        opponent's game between their two meetings (prevents AABBCCDD patterns).
+    C13 Divisional opponent interleaving: at most 2 divisional opponents may have
+        no other divisional meeting between their two meetings (limits AABBCCDD patterns).
     C14 Week 16: 8 divisional games.
     C15 Each team must play at least one divisional game in the last two weeks.
     """
@@ -666,9 +666,9 @@ class _ScheduleModel:
         for i in self.four_team_ids:
             self.model.add(sum(self.d[i, w] for w in second_half) >= 3)
 
-    def _constraint_interleaving(self) -> None:
-        # Require at least 2 divisional opponents to have one of their meetings fall between a team's first and second meeting with another rival.
-        min_interleaved = 2
+    def _constraint_max_two_non_interleaved_divisional_opponents(self) -> None:
+        # Count a divisional opponent as interleaved if another rival's first or second meeting
+        # falls between the team's first and second meeting with that opponent.
         for i in self.team_ids:
             opps = self.div_opponents[i]
             first_meet: dict[int, cp_model.IntVar] = {}
@@ -703,7 +703,8 @@ class _ScheduleModel:
                 self.model.add_bool_or(between_vars).only_enforce_if(il)
                 interleaved.append(il)
 
-            self.model.add(sum(interleaved) >= min_interleaved)
+            # Allow at most 2 non-interleaved divisional opponents per team.
+            self.model.add(sum(interleaved) >= len(opps) - 2)
 
     def _constraint_week_16_matchups(self) -> None:
         # Require exactly 8 of the 9 games in the final week to be divisional.
@@ -736,7 +737,7 @@ class _ScheduleModel:
         self._constraint_max_one_total_three_game_divisional_streak()
         self._constraint_division_density()
         self._constraint_second_half_division()
-        self._constraint_interleaving()
+        self._constraint_max_two_non_interleaved_divisional_opponents()
         self._constraint_week_16_matchups()
         self._constraint_late_divisional_presence()
 
