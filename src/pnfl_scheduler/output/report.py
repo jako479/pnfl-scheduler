@@ -3,16 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .config import ConferenceRanking
-from .history import NonConfHistory
-from .schedule import Schedule
-from .scheduler_two_phase import (
+from ..app.config import ConferenceRanking
+from ..domain.history import NonConfHistory
+from ..domain.schedule import Schedule
+from ..domain.teams import Division, TEAMS, Team
+from ..schedulers.two_phase import (
     _fixed_rank_pairs,
     _normalize_conference_ranking,
     _rank_by_id,
     _solve_four_team_extra_rank_pairs,
 )
-from .teams import Division, TEAMS, Team
 
 
 @dataclass(frozen=True)

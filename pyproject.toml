@@ -15,10 +15,10 @@ dependencies = ["ortools>=9.10"]
 dev = ["pytest", "ruff"]
 
 [project.scripts]
-pnfl-scheduler = "pnfl_scheduler.cli:main"
+pnfl-scheduler = "pnfl_scheduler.app.cli:main"
 
 [project.entry-points."pnfl.commands"]
-generate-schedule = "pnfl_scheduler.cli:main"
+generate-schedule = "pnfl_scheduler.app.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -26,10 +26,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--durations=3"
-markers = [
-    "legacy_scheduler_only: tests that only apply to the legacy schedulers",
-    "two_phase_only: tests that only apply to the two-phase scheduler",
-]
 
 [tool.ruff]
 line-length = 140

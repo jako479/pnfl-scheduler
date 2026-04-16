@@ -4,8 +4,9 @@ import pytest
 
 from tests.conftest import CONFIG_5_SLOTS, CONFIG_6_SLOTS, CONFIG_7_SLOTS, HISTORY_PATH
 
-from pnfl_scheduler.history import NonConfHistory
-from pnfl_scheduler.scheduler_two_phase import (
+from pnfl_scheduler.domain.history import NonConfHistory
+from pnfl_scheduler.domain.teams import Conference, Division, TEAMS, Team, lookup_team
+from pnfl_scheduler.schedulers.two_phase import (
     FIXED_NONCONF_RANK_OPPONENTS,
     _fixed_rank_pairs,
     _normalize_conference_ranking,
@@ -13,7 +14,6 @@ from pnfl_scheduler.scheduler_two_phase import (
     _solve_four_team_extra_rank_pairs,
     build_phase_one_matchup_inventory,
 )
-from pnfl_scheduler.teams import Conference, Division, TEAMS, Team, lookup_team
 
 
 ALL_CONFIGS = [
@@ -26,7 +26,6 @@ ALL_CONFIGS = [
 def _phase_one_inventory(config) -> tuple[tuple[int, int], ...]:
     return build_phase_one_matchup_inventory(
         conference_ranking=config["conference_ranking"],
-        last_place=config["last_place"],
         history=NonConfHistory.load(HISTORY_PATH),
     )
 

@@ -6,13 +6,13 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
-from .html_writer import HtmlScheduleWriter
-from .txt_schedule_writer import TxtScheduleWriter
 from .config import find_config_path, load_config
-from .history import NonConfHistory
-from .report import TxtReportWriter, build_schedule_report
-from .run import generate_schedule
-from .run import DEFAULT_HISTORY_PATH
+from .run import DEFAULT_HISTORY_PATH, generate_schedule
+from ..domain.history import NonConfHistory
+from ..output.html_writer import HtmlScheduleWriter
+from ..output.report import TxtReportWriter, build_schedule_report
+from ..output.txt_schedule_writer import TxtScheduleWriter
+from ..schedulers import DEFAULT_SCHEDULER, available_schedulers
 
 
 def _resolve_writer(parser: argparse.ArgumentParser, output: Path, output_format: str | None):
@@ -54,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the generate-schedule.ini file. Defaults to the standard search order.",
     )
     parser.add_argument(
+        "--scheduler",
+        choices=available_schedulers(),
+        default=DEFAULT_SCHEDULER,
+        help="Scheduler implementation to run.",
+    )
+    parser.add_argument(
         "--history",
         type=Path,
         default=None,
@@ -86,6 +92,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     seed = random.randint(0, 1_000_000)
     started_at = time.perf_counter()
     schedule = generate_schedule(
+        scheduler=args.scheduler,
         seed=seed,
         time_limit=args.time_limit,
         config=config,
@@ -98,7 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         conference_ranking=config.ConferenceRanking,
         history=history,
         seed=seed,
-        scheduler_kind="two-phase",
+        scheduler_kind=args.scheduler,
         config_path=config_path,
         history_path=history_path,
         elapsed_time_seconds=elapsed_time_seconds,

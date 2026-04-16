@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .schedule import Game, Schedule
+from ..domain.schedule import Game, Schedule
 
 
 def _week_games(schedule: Schedule) -> dict[int, list[Game]]:

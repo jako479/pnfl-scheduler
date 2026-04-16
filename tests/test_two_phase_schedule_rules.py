@@ -2,18 +2,13 @@ from collections import Counter
 
 import pytest
 
-from pnfl_scheduler.scheduler_two_phase import build_phase_one_matchup_inventory
-from pnfl_scheduler.teams import Division, NUM_WEEKS, TEAMS
-
-
-pytestmark = pytest.mark.two_phase_only
-
+from pnfl_scheduler.domain.teams import Division, NUM_WEEKS, TEAMS
+from pnfl_scheduler.schedulers.two_phase import build_phase_one_matchup_inventory
 
 @pytest.fixture(scope="session")
 def expected_phase_one_inventory(standings_data, history):
     return build_phase_one_matchup_inventory(
         conference_ranking=standings_data["conference_ranking"],
-        last_place=standings_data["last_place"],
         history=history,
     )
 

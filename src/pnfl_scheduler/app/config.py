@@ -4,7 +4,7 @@ import configparser
 from dataclasses import dataclass
 from pathlib import Path
 
-PACKAGE_DIR = Path(__file__).resolve().parent
+PACKAGE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_DIR = PACKAGE_DIR.parent.parent
 
 DEFAULT_TIME_LIMIT = 3600.0

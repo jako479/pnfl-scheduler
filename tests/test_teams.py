@@ -1,4 +1,4 @@
-from pnfl_scheduler.teams import TEAMS, Conference, Division
+from pnfl_scheduler.domain.teams import TEAMS, Conference, Division
 
 
 def test_eighteen_teams():

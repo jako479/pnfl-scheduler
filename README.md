@@ -1,17 +1,20 @@
 # pnfl-scheduler
 
-Generates PNFL schedules.
+Generates PNFL schedules with the current two-phase OR-Tools scheduler.
 
-This repo contains three scheduler implementations:
+The repo keeps scheduler-selection plumbing in place so another scheduler can be
+added later, but only the two-phase scheduler is currently implemented.
 
-- `scheduler_two_phase.py`
-  Current default. Phase I builds the opponent inventory; Phase II places it with CP-SAT.
-- `scheduler_history.py`
-  Legacy history-aware scheduler.
-- `scheduler.py`
-  Original one-phase scheduler.
+Package layout:
 
-The package-level runner, CLI, and default pytest path use the two-phase scheduler.
+- `pnfl_scheduler.app`
+  CLI, config loading, and top-level run plumbing.
+- `pnfl_scheduler.domain`
+  Teams, schedule data structures, and non-conference history data.
+- `pnfl_scheduler.output`
+  HTML, text schedule, and text report writers.
+- `pnfl_scheduler.schedulers`
+  Scheduler registry and the current two-phase scheduler.
 
 ## Setup
 
@@ -21,57 +24,46 @@ py -3.13 -m venv .venv
 py -m pip install -e ".[dev]"
 ```
 
-`ortools` is a required runtime dependency.
+`ortools` is required at runtime.
 
 ## Config
 
-The default runner reads `generate-schedule.ini` or `generate-schedule.dev.ini`
-from the working directory or `config/`.
-
-The config currently provides:
-
-- solver settings
-- conference ranking input for the two-phase scheduler
-
-Legacy schedulers do not read that file directly; they take their lower-level
-inputs through their Python APIs.
+The app reads `generate-schedule.ini` or `generate-schedule.dev.ini` from the
+working directory or `config/`. That file controls solver settings and the
+conference ranking input used by the scheduler.
 
 ## CLI
-
-The CLI requires a main output path:
 
 ```powershell
 pnfl-scheduler --output season.html
 pnfl-scheduler --output season.txt
 pnfl-scheduler --output season.out --format html
 pnfl-scheduler --output season.out --format txt
-pnfl-scheduler --output season.out --format txt --txt-report schedule-report.txt
+pnfl-scheduler --output season.html --txt-report season-report.txt
 ```
 
-The writer is chosen from `--format` if provided, otherwise from the output
-file extension.
+If the console script is not available in the active environment, use:
 
-A text report is also written by default:
+```powershell
+python -m pnfl_scheduler.app.cli --output season.html
+```
+
+The schedule writer is chosen from `--format` when provided, otherwise from the
+output file extension.
+
+A text report is written by default alongside the main output:
 
 - `season.html` -> `season-report.txt`
 - `season.txt` -> `season-report.txt`
 
-Use `--txt-report` only to override that report path.
+Use `--txt-report` only to override that default report path.
 
 ## Library Usage
-
-Default runner:
 
 ```python
 from pnfl_scheduler import generate_schedule
 
 schedule = generate_schedule()
-```
-
-Low-level two-phase entry point:
-
-```python
-from pnfl_scheduler.scheduler_two_phase import solve_schedule
 ```
 
 ## Testing
@@ -80,7 +72,5 @@ from pnfl_scheduler.scheduler_two_phase import solve_schedule
 pytest
 pytest tests/unit/test_two_phase_inventory.py
 pytest tests/test_two_phase_schedule_rules.py
-pytest --history
-pytest --no-history
 pytest --all-configs
 ```

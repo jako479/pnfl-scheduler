@@ -5,8 +5,8 @@ from html import escape
 from pathlib import Path
 from typing import TypeVar
 
-from .schedule import Game, Schedule
-from .teams import TEAMS, Division, Team
+from ..domain.schedule import Game, Schedule
+from ..domain.teams import TEAMS, Division, Team
 
 
 T = TypeVar("T")

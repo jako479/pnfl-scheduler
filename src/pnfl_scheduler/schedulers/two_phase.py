@@ -66,14 +66,14 @@ Divisional:
 - 3 straight divisional games at the start or end of the season are rare, so the model forbids them.
 - For 5-team divisions, very rare to have 8 div games in a 10-game span, so capping at 7 in 10 games
   and preventing 7 in 9 games.
-- For 4-team divisions, very rare to have all 6 div games in an 8-game span, so capping at 5 in 8 games,
-  and preventing 5 in 7 games.
+- For 4-team divisions, very rare to have all 6 div games in an 8-game span, so capping at 5 in 8 games
+  and preventing 4 in 7 games.
 - Modern NFL tries to back-load divisional games to the last half of the season, so at least
   half of each team's divisional games must occur in the second half of the season.
 
 PNFL policy choices layered on top of those guideposts:
 - All teams have at least one divisional game in the final two weeks.
-- Week 16 is forced to have a 8 divisional games (the most possible) and a single non-conference game.
+- Week 16 is forced to have 8 divisional games (the most possible) and a single non-conference game.
 """
 
 from __future__ import annotations
@@ -85,11 +85,10 @@ from dataclasses import dataclass
 from ortools.graph.python import linear_sum_assignment
 from ortools.sat.python import cp_model
 
-from .config import ConferenceRanking
-from .history import NonConfHistory
-from .schedule import Game, Schedule
-from .scheduler import PlayoffTeams, SchedulerError
-from .teams import NUM_WEEKS, TEAMS, Conference, Division, Team, lookup_team
+from ..app.config import ConferenceRanking
+from ..domain.history import NonConfHistory
+from ..domain.schedule import Game, Schedule
+from ..domain.teams import NUM_WEEKS, TEAMS, Conference, Division, Team, lookup_team
 
 MatchupPair = tuple[int, int]
 PhaseOneInventory = tuple[MatchupPair, ...]
@@ -108,6 +107,10 @@ FIXED_NONCONF_RANK_OPPONENTS: dict[int, tuple[int, int, int]] = {
 
 DROUGHT_COST_WEIGHT = 100
 TEAM_BY_ID = {team.id: team for team in TEAMS}
+
+
+class SchedulerError(RuntimeError):
+    """Raised when the scheduler cannot build a valid matchup inventory or schedule."""
 
 
 @dataclass
@@ -362,7 +365,6 @@ def _add_history_matchups(
 
 def build_phase_one_matchup_inventory(
     conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None,
-    last_place: tuple[str, str] | None,
     history: NonConfHistory | None = None,
 ) -> PhaseOneInventory:
     """Build the full season opponent inventory in phase-1 order."""
@@ -370,8 +372,6 @@ def build_phase_one_matchup_inventory(
     ranked_teams_by_conf = _normalize_conference_ranking(conference_ranking)
     rank_by_id = _rank_by_id(ranked_teams_by_conf)
     state = _new_phase_one_state()
-    del last_place
-
     _add_divisional_matchups(state)
     _add_conference_matchups(state)
     _add_fixed_rank_nonconference_matchups(state, ranked_teams_by_conf)
@@ -391,7 +391,6 @@ def build_phase_one_matchup_inventory(
 
 def compute_nonconference_inventory(
     conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None,
-    last_place: tuple[str, str] | None,
     history: NonConfHistory | None = None,
 ) -> set[MatchupPair]:
     """Return just the non-conference subset of the phase-1 inventory.
@@ -403,7 +402,6 @@ def compute_nonconference_inventory(
         pair
         for pair in build_phase_one_matchup_inventory(
             conference_ranking=conference_ranking,
-            last_place=last_place,
             history=history,
         )
         if _is_nonconference_pair(pair)
@@ -707,7 +705,7 @@ class _ScheduleModel:
 
             self.model.add(sum(interleaved) >= min_interleaved)
 
-    def _constraint_week_16_matchups(self, last_place: tuple[str, str] | None) -> None:
+    def _constraint_week_16_matchups(self) -> None:
         # Require exactly 8 of the 9 games in the final week to be divisional.
         last_week = NUM_WEEKS - 1
         self.model.add(sum(self.x[i, j, last_week] + self.x[j, i, last_week] for i, j in self.divisional_pairs) == 8)
@@ -719,7 +717,6 @@ class _ScheduleModel:
 
     def build(
         self,
-        last_place: tuple[str, str] | None,
         phase_one_inventory: PhaseOneInventory,
     ) -> None:
         self._constraint_one_game_per_week()
@@ -740,7 +737,7 @@ class _ScheduleModel:
         self._constraint_division_density()
         self._constraint_second_half_division()
         self._constraint_interleaving()
-        self._constraint_week_16_matchups(last_place)
+        self._constraint_week_16_matchups()
         self._constraint_late_divisional_presence()
 
     def solve(self, seed: int = 0, time_limit: float = 1800.0) -> Schedule:
@@ -766,38 +763,27 @@ def solve_phase_two_schedule(
     phase_one_inventory: PhaseOneInventory,
     seed: int = 0,
     time_limit: float = 3600.0,
-    last_place: tuple[str, str] | None = None,
 ) -> Schedule:
     """Place the phase-1 opponent inventory into weeks and home/away slots."""
     schedule_model = _ScheduleModel()
-    schedule_model.build(last_place=last_place, phase_one_inventory=phase_one_inventory)
+    schedule_model.build(phase_one_inventory=phase_one_inventory)
     return schedule_model.solve(seed=seed, time_limit=time_limit)
 
 
 def solve_schedule(
     seed: int = 0,
     time_limit: float = 3600.0,
-    playoffs: PlayoffTeams | None = None,
-    last_place: tuple[str, str] | None = None,
-    non_playoff_ranked: list[str] | None = None,
     conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None = None,
     history: NonConfHistory | None = None,
 ) -> Schedule:
-    """Overall driver: build the phase-1 inventory, then solve phase 2.
-
-    The `playoffs` and `non_playoff_ranked` parameters are retained only for
-    call-site compatibility with the legacy scheduler interfaces.
-    """
-    del playoffs, non_playoff_ranked
+    """Overall driver: build the phase-1 inventory, then solve phase 2."""
 
     phase_one_inventory = build_phase_one_matchup_inventory(
         conference_ranking=conference_ranking,
-        last_place=last_place,
         history=history,
     )
     return solve_phase_two_schedule(
         phase_one_inventory=phase_one_inventory,
         seed=seed,
         time_limit=time_limit,
-        last_place=last_place,
     )

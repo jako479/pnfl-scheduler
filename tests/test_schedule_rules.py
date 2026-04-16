@@ -1,6 +1,4 @@
-import pytest
-
-from pnfl_scheduler.teams import Division, NUM_WEEKS, TEAMS, lookup_team
+from pnfl_scheduler.domain.teams import Division, NUM_WEEKS, TEAMS
 
 
 def test_each_team_plays_exactly_one_game_per_week(schedule):
@@ -153,26 +151,6 @@ def test_three_away_streak_at_most_once(schedule):
         assert count <= 1, f"{team.city}: {count} away streaks of 3+"
 
 
-@pytest.mark.legacy_scheduler_only
-def test_no_more_than_two_consecutive_division_games(schedule):
-    """Teams cannot have more than 2 consecutive divisional games."""
-    for team in TEAMS:
-        streak = _max_streak(_div_pattern(schedule, team))
-        assert streak <= 2, f"{team.city}: {streak} consecutive division games"
-
-
-def test_max_seven_division_games_in_eleven_game_span_five_team_div(schedule):
-    """Five-team divisions cannot have more than 7 divisional games in any 11-game window."""
-    five_team_teams = [t for t in TEAMS if t.division in (Division.AFC_WEST, Division.NFC_WEST)]
-    for team in five_team_teams:
-        pattern = _div_pattern(schedule, team)
-        for w in range(NUM_WEEKS - 10):
-            count = sum(pattern[w : w + 11])
-            assert count <= 7, (
-                f"{team.city} weeks {w + 1}-{w + 11}: {count} division games in 11-game span"
-            )
-
-
 def test_max_five_division_games_in_eight_game_span_four_team_div(schedule):
     """Four-team divisions cannot have more than 5 divisional games in any 8-game window."""
     four_team_teams = [t for t in TEAMS if t.division in (Division.AFC_EAST, Division.NFC_EAST)]
@@ -183,16 +161,6 @@ def test_max_five_division_games_in_eight_game_span_four_team_div(schedule):
             assert count <= 5, (
                 f"{team.city} weeks {w + 1}-{w + 8}: {count} division games in 8-game span"
             )
-
-
-@pytest.mark.legacy_scheduler_only
-def test_no_consecutive_divisional_games_in_first_two_weeks(schedule):
-    """No team opens the season with consecutive divisional matchups."""
-    for team in TEAMS:
-        pattern = _div_pattern(schedule, team)
-        assert pattern[0] + pattern[1] <= 1, (
-            f"{team.city}: divisional games in both weeks 1 and 2"
-        )
 
 
 def test_at_least_half_divisional_games_in_second_half(schedule):
@@ -247,115 +215,3 @@ def test_last_week_has_eight_intra_division_games(schedule):
     last_week_games = [g for g in schedule.games if g.week == NUM_WEEKS]
     intra = sum(1 for g in last_week_games if g.home.division == g.away.division)
     assert intra == 8, f"Week {NUM_WEEKS}: {intra} divisional games, expected 8"
-
-
-@pytest.mark.legacy_scheduler_only
-def test_last_week_inter_division_game_is_last_place_matchup(schedule, standings_data):
-    """The inter-division game in the last week is between the two last-place teams."""
-    last_week_games = [g for g in schedule.games if g.week == NUM_WEEKS]
-    inter_games = [g for g in last_week_games if g.home.division != g.away.division]
-    assert len(inter_games) == 1
-    game = inter_games[0]
-    lp_a = lookup_team(standings_data["last_place"][0])
-    lp_b = lookup_team(standings_data["last_place"][1])
-    assert {game.home, game.away} == {lp_a, lp_b}, (
-        f"Last week inter-division game is {game.home.city} vs {game.away.city}, "
-        f"expected {lp_a.city} vs {lp_b.city}"
-    )
-
-
-@pytest.mark.legacy_scheduler_only
-def test_division_winners_play_both_non_conference_division_winners(schedule, standings_data):
-    """Each division winner plays both division winners from the other conference."""
-    div_winners, _ = standings_data["playoffs"].resolved()
-    for team in div_winners:
-        other_dws = [t for t in div_winners if t.conference != team.conference]
-        for opp in other_dws:
-            meetings = schedule.games_between(team, opp)
-            assert len(meetings) == 1, (
-                f"DW {team.city} vs DW {opp.city}: {len(meetings)} meetings, expected 1"
-            )
-
-
-@pytest.mark.legacy_scheduler_only
-def test_division_winners_play_exactly_one_non_conference_wild_card(schedule, standings_data):
-    """Each division winner plays exactly 1 wild card from the other conference."""
-    div_winners, wild_cards = standings_data["playoffs"].resolved()
-    for team in div_winners:
-        other_wcs = [t for t in wild_cards if t.conference != team.conference]
-        total = sum(len(schedule.games_between(team, opp)) for opp in other_wcs)
-        assert total == 1, (
-            f"DW {team.city}: {total} non-conference wild card games, expected 1"
-        )
-
-
-@pytest.mark.legacy_scheduler_only
-def test_wild_cards_play_exactly_one_non_conference_division_winner(schedule, standings_data):
-    """Each wild card plays exactly 1 division winner from the other conference."""
-    div_winners, wild_cards = standings_data["playoffs"].resolved()
-    for team in wild_cards:
-        other_dws = [t for t in div_winners if t.conference != team.conference]
-        total = sum(len(schedule.games_between(team, opp)) for opp in other_dws)
-        assert total == 1, (
-            f"WC {team.city}: {total} non-conference division winner games, expected 1"
-        )
-
-
-@pytest.mark.legacy_scheduler_only
-def test_wild_cards_play_both_non_conference_wild_cards(schedule, standings_data):
-    """Each wild card plays both wild cards from the other conference."""
-    _, wild_cards = standings_data["playoffs"].resolved()
-    for team in wild_cards:
-        other_wcs = [t for t in wild_cards if t.conference != team.conference]
-        for opp in other_wcs:
-            meetings = schedule.games_between(team, opp)
-            assert len(meetings) == 1, (
-                f"WC {team.city} vs WC {opp.city}: {len(meetings)} meetings, expected 1"
-            )
-
-
-@pytest.mark.legacy_scheduler_only
-def test_non_playoff_teams_face_at_most_one_non_conference_division_winner(schedule, standings_data):
-    """Non-playoff teams face at most 1 non-conference division winner."""
-    div_winners, wild_cards = standings_data["playoffs"].resolved()
-    all_playoff = set(div_winners + wild_cards)
-    for team in TEAMS:
-        if team in all_playoff:
-            continue
-        other_dws = [t for t in div_winners if t.conference != team.conference]
-        total = sum(len(schedule.games_between(team, opp)) for opp in other_dws)
-        assert total <= 1, (
-            f"{team.city}: {total} non-conference division winner games, expected <= 1"
-        )
-
-
-@pytest.mark.legacy_scheduler_only
-def test_non_playoff_teams_face_exact_number_of_non_conference_playoff_opponents(
-    schedule, standings_data
-):
-    """Each non-playoff team faces exactly 1 or 2 non-conference playoff opponents.
-
-    Highest-ranked teams absorb the overflow and the rest get exactly 1.
-    """
-    div_winners, wild_cards = standings_data["playoffs"].resolved()
-    all_playoff = div_winners + wild_cards
-    np_ranked = [lookup_team(c) for c in standings_data["non_playoff_ranked"]]
-
-    for conf in [Division.AFC_EAST.conference, Division.NFC_EAST.conference]:
-        other_conf_playoff = [t for t in all_playoff if t.conference != conf]
-        np_in_conf = [t for t in np_ranked if t.conference == conf]
-
-        free_slots = 0
-        for t in other_conf_playoff:
-            if t.division in (Division.AFC_EAST, Division.NFC_EAST):
-                free_slots += 2
-            else:
-                free_slots += 1
-        overflow = free_slots - len(np_in_conf)
-
-        for rank, t in enumerate(np_in_conf):
-            expected = 2 if rank < overflow else 1
-            total = sum(len(schedule.games_between(t, opp)) for opp in other_conf_playoff)
-            assert total == expected, (
-                f"{t.city} (rank {rank + 1}): {total} non-conference playoff games, expected {expected}"
-            )

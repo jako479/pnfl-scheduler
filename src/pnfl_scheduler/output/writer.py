@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from .schedule import Schedule
+from ..domain.schedule import Schedule
 
 
 class ScheduleWriter(Protocol):
