@@ -1,5 +1,23 @@
 """pnfl-scheduler package."""
 
-from .cli import main
+from .html_writer import HtmlScheduleWriter
+from .report import TxtReportWriter
+from .run import generate_schedule
+from .txt_schedule_writer import TxtScheduleWriter
+from .writer import ScheduleWriter
 
-__all__ = ["main"]
+
+def main(argv=None):
+    from .cli import main as _main
+
+    return _main(argv)
+
+
+__all__ = [
+    "main",
+    "generate_schedule",
+    "ScheduleWriter",
+    "HtmlScheduleWriter",
+    "TxtScheduleWriter",
+    "TxtReportWriter",
+]

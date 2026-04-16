@@ -79,8 +79,8 @@ class NonConfHistory:
         null (never played) = 0, then seasons ranked oldest-first:
         oldest = 1, next oldest = 2, etc.
         """
-        cross_conf = [t for t in TEAMS if t.conference != team.conference]
-        seasons = sorted({s for t in cross_conf if (s := self.last_played(team, t)) is not None})
+        non_conf_teams = [t for t in TEAMS if t.conference != team.conference]
+        seasons = sorted({s for t in non_conf_teams if (s := self.last_played(team, t)) is not None})
         season_to_cost = {s: i + 1 for i, s in enumerate(seasons)}
 
         s = self.last_played(team, opp)

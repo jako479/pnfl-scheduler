@@ -1,45 +1,86 @@
 # pnfl-scheduler
 
-Generates the seasonal game schedule for the PNFL.
+Generates PNFL schedules.
 
-Uses Google OR-Tools CP-SAT to solve a constraint model that enforces
-division matchups, home/away balance, streak limits, strength-of-schedule
-rules, and final-week pairings.
+This repo contains three scheduler implementations:
+
+- `scheduler_two_phase.py`
+  Current default. Phase I builds the opponent inventory; Phase II places it with CP-SAT.
+- `scheduler_history.py`
+  Legacy history-aware scheduler.
+- `scheduler.py`
+  Original one-phase scheduler.
+
+The package-level runner, CLI, and default pytest path use the two-phase scheduler.
 
 ## Setup
 
-```bash
+```powershell
 py -3.13 -m venv .venv
 .venv\Scripts\activate
 py -m pip install -e ".[dev]"
 ```
 
-## Usage
+`ortools` is a required runtime dependency.
 
-Library only for now. The public entry point is `solve_schedule()`:
+## Config
+
+The default runner reads `generate-schedule.ini` or `generate-schedule.dev.ini`
+from the working directory or `config/`.
+
+The config currently provides:
+
+- solver settings
+- conference ranking input for the two-phase scheduler
+
+Legacy schedulers do not read that file directly; they take their lower-level
+inputs through their Python APIs.
+
+## CLI
+
+The CLI requires a main output path:
+
+```powershell
+pnfl-scheduler --output season.html
+pnfl-scheduler --output season.txt
+pnfl-scheduler --output season.out --format html
+pnfl-scheduler --output season.out --format txt
+pnfl-scheduler --output season.out --format txt --txt-report schedule-report.txt
+```
+
+The writer is chosen from `--format` if provided, otherwise from the output
+file extension.
+
+A text report is also written by default:
+
+- `season.html` -> `season-report.txt`
+- `season.txt` -> `season-report.txt`
+
+Use `--txt-report` only to override that report path.
+
+## Library Usage
+
+Default runner:
 
 ```python
-from pnfl_scheduler.scheduler import PlayoffTeams, solve_schedule
+from pnfl_scheduler import generate_schedule
 
-schedule = solve_schedule(
-    seed=0,
-    playoffs=PlayoffTeams(
-        division_winners=("New England", "Cincinnati", "Washington", "Chicago"),
-        wild_cards=("Pittsburgh", "Denver", "Atlanta", "Minnesota"),
-    ),
-    last_place=("Las Vegas", "Seattle"),
-    non_playoff_ranked=[
-        "Miami", "Buffalo", "Jacksonville", "Los Angeles", "Las Vegas",
-        "New York", "Philadelphia", "San Francisco", "Green Bay", "Seattle",
-    ],
-)
+schedule = generate_schedule()
+```
 
-for game in schedule.games:
-    print(f"Week {game.week:2d}: {game.away.city:15s} @ {game.home.city}")
+Low-level two-phase entry point:
+
+```python
+from pnfl_scheduler.scheduler_two_phase import solve_schedule
 ```
 
 ## Testing
 
-```bash
+```powershell
 pytest
+pytest tests/unit/test_two_phase_inventory.py
+pytest tests/test_two_phase_schedule_rules.py
+pytest --history
+pytest --no-history
+pytest --all-configs
 ```

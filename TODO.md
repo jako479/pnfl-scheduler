@@ -1,6 +1,7 @@
 # TODO
 
-- Biggest remaining task: fully integrate strength of schedule into opponent selection.
-- Consider switching to a two-pass methodology where first-pass determines opponents (possibly with
-  LinearSumAssignment) based on fixed-matchups, SOS, and head-to-head history, and second-pass
-  determines full schedule based on the constraints.
+- Remove legacy schedulers
+- Improve two-phase scheduler to integrate SOS in with H2H matchup determinination.
+  Currently, bad teams can end up with super difficult schedules, and vice-versa.
+- Add another scheduler based on an exact copy of scheduler_two_phase.py that
+  fully-utilizes SOS algorithm rather than a fixed-matchup table for SOS.

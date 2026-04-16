@@ -6,9 +6,13 @@ import pytest
 from pnfl_scheduler.history import NonConfHistory
 from pnfl_scheduler.scheduler import PlayoffTeams, solve_schedule
 from pnfl_scheduler.scheduler_history import solve_schedule as solve_schedule_history
-from pnfl_scheduler.teams import Division, lookup_team
+from pnfl_scheduler.scheduler_two_phase import solve_schedule as solve_schedule_two_phase
+from pnfl_scheduler.teams import Conference, Division, lookup_team
 
 HISTORY_PATH = Path(__file__).resolve().parent.parent / "data" / "nonconf_history.json"
+SCHEDULER_TWO_PHASE = "two-phase"
+SCHEDULER_HISTORY = "history"
+SCHEDULER_ORIGINAL = "original"
 
 
 def _derive_division_winners(conf_standings):
@@ -60,6 +64,10 @@ def _build_config(afc_standings, nfc_standings):
             _derive_last_place_5team(afc_standings),
             _derive_last_place_5team(nfc_standings),
         ),
+        "conference_ranking": {
+            Conference.AFC: tuple(afc_standings),
+            Conference.NFC: tuple(nfc_standings),
+        },
         "non_playoff_ranked": (
             _derive_non_playoff_ranked(afc_standings, all_playoff) + _derive_non_playoff_ranked(nfc_standings, all_playoff)
         ),
@@ -147,13 +155,26 @@ CONFIG_7_SLOTS = _build_config(
 _solve_cache = {}
 
 
-def _solve_for_config(config, config_id, use_history=False):
-    cache_key = (config_id, use_history)
+def _selected_scheduler(pytest_config) -> str:
+    use_history = pytest_config.getoption("--history")
+    use_original = pytest_config.getoption("--no-history")
+
+    if use_history and use_original:
+        raise pytest.UsageError("Choose at most one legacy scheduler flag: --history or --no-history")
+    if use_history:
+        return SCHEDULER_HISTORY
+    if use_original:
+        return SCHEDULER_ORIGINAL
+    return SCHEDULER_TWO_PHASE
+
+
+def _solve_for_config(config, config_id, scheduler_kind):
+    cache_key = (config_id, scheduler_kind)
     if cache_key not in _solve_cache:
         seed = random.randint(0, 1_000_000)
-        label = f"history/{config_id}" if use_history else config_id
+        label = f"{scheduler_kind}/{config_id}"
         print(f"\nScheduler seed ({label}): {seed}")
-        if use_history:
+        if scheduler_kind == SCHEDULER_HISTORY:
             history = NonConfHistory.load(HISTORY_PATH)
             _solve_cache[cache_key] = solve_schedule_history(
                 seed=seed,
@@ -162,12 +183,22 @@ def _solve_for_config(config, config_id, use_history=False):
                 non_playoff_ranked=config["non_playoff_ranked"],
                 history=history,
             )
-        else:
+        elif scheduler_kind == SCHEDULER_ORIGINAL:
             _solve_cache[cache_key] = solve_schedule(
                 seed=seed,
                 playoffs=config["playoffs"],
                 last_place=config["last_place"],
                 non_playoff_ranked=config["non_playoff_ranked"],
+            )
+        else:
+            history = NonConfHistory.load(HISTORY_PATH)
+            _solve_cache[cache_key] = solve_schedule_two_phase(
+                seed=seed,
+                playoffs=config["playoffs"],
+                last_place=config["last_place"],
+                non_playoff_ranked=config["non_playoff_ranked"],
+                conference_ranking=config["conference_ranking"],
+                history=history,
             )
     return _solve_cache[cache_key]
 
@@ -187,10 +218,16 @@ def pytest_addoption(parser):
         help="Run against all 3 playoff configs (slow). Default: fastest config only.",
     )
     parser.addoption(
+        "--history",
+        action="store_true",
+        default=False,
+        help="Use the history-aware legacy scheduler instead of the two-phase default.",
+    )
+    parser.addoption(
         "--no-history",
         action="store_true",
         default=False,
-        help="Use the original scheduler instead of the history-aware default.",
+        help="Use the original one-phase scheduler instead of the two-phase default.",
     )
 
 
@@ -201,12 +238,22 @@ def pytest_collection_modifyitems(config, items):
             if "6-free-slots" in item.nodeid or "7-free-slots" in item.nodeid:
                 item.add_marker(skip)
 
-    use_history = not config.getoption("--no-history")
-    if not use_history:
-        skip_history = pytest.mark.skip(reason="only runs with history scheduler (default)")
+    scheduler_kind = _selected_scheduler(config)
+    if scheduler_kind != SCHEDULER_HISTORY:
+        skip_history = pytest.mark.skip(reason="only runs with history scheduler")
         for item in items:
             if "history_schedule" in item.fixturenames:
                 item.add_marker(skip_history)
+    if scheduler_kind == SCHEDULER_TWO_PHASE:
+        skip_legacy = pytest.mark.skip(reason="legacy scheduler-only rule")
+        for item in items:
+            if "legacy_scheduler_only" in item.keywords:
+                item.add_marker(skip_legacy)
+    else:
+        skip_two_phase = pytest.mark.skip(reason="only runs with two-phase scheduler")
+        for item in items:
+            if "two_phase_only" in item.keywords:
+                item.add_marker(skip_two_phase)
 
 
 @pytest.fixture(params=ALL_CONFIGS, scope="session")
@@ -214,8 +261,8 @@ def config(request):
     """The raw config dict + solved schedule, paired together."""
     cfg = request.param
     cache_key = id(cfg)
-    use_history = not request.config.getoption("--no-history")
-    sched = _solve_for_config(cfg, cache_key, use_history=use_history)
+    scheduler_kind = _selected_scheduler(request.config)
+    sched = _solve_for_config(cfg, cache_key, scheduler_kind=scheduler_kind)
     return cfg, sched
 
 

@@ -1,0 +1,29 @@
+PNFL Schedule Report
+====================
+
+Seed: 136468
+Scheduler kind: two-phase
+Config path: C:\Users\Brian\Projects\PNFL\pnfl-scheduler\config\generate-schedule.dev.ini
+History path: C:\Users\Brian\Projects\PNFL\pnfl-scheduler\data\nonconf_history.json
+Solver time limit: 3600.0
+
+Team             Conf Rank   Sched Rank   Non-conf Rank  H2H Opponent     Last Played   Non-Conference Opponents
+----             ---------   ----------   -------------  ------------     -----------   ------------------------
+Buffalo          9           3            13             Chicago          2044          Chicago, New York, Philadelphia, Seattle, Washington
+Jacksonville     7           8            11             Minnesota        2044          Atlanta, Minnesota, New York, Philadelphia, San Francisco
+Miami            1           17           4              Green Bay        2043          Atlanta, Chicago, Green Bay, Minnesota, Philadelphia
+New England      5           9            5              Washington       2046          Atlanta, Chicago, Green Bay, Philadelphia, Washington
+Cincinnati       6           12           17             Philadelphia     never         New York, Philadelphia, Seattle, Washington
+Denver           3           13           9              Seattle          2045          Chicago, New York, Seattle, Washington
+Las Vegas        4           6            7              New York         2044          Atlanta, Minnesota, New York, San Francisco
+Los Angeles      2           10           3              San Francisco    never         Green Bay, Minnesota, San Francisco, Washington
+Pittsburgh       8           4            16             Atlanta          2046          Atlanta, Green Bay, San Francisco, Seattle
+Atlanta          4           14           8              Pittsburgh       2046          Jacksonville, Las Vegas, Miami, New England, Pittsburgh
+New York         6           16           15             Las Vegas        2044          Buffalo, Cincinnati, Denver, Jacksonville, Las Vegas
+Philadelphia     8           7            14             Cincinnati       never         Buffalo, Cincinnati, Jacksonville, Miami, New England
+Washington       3           18           10             New England      2046          Buffalo, Cincinnati, Denver, Los Angeles, New England
+Chicago          2           15           6              Buffalo          2044          Buffalo, Denver, Miami, New England
+Green Bay        5           1            2              Miami            2043          Los Angeles, Miami, New England, Pittsburgh
+Minnesota        1           11           1              Jacksonville     2044          Jacksonville, Las Vegas, Los Angeles, Miami
+San Francisco    7           2            12             Los Angeles      never         Jacksonville, Las Vegas, Los Angeles, Pittsburgh
+Seattle          9           5            18             Denver           2045          Buffalo, Cincinnati, Denver, Pittsburgh

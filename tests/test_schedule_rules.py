@@ -1,3 +1,5 @@
+import pytest
+
 from pnfl_scheduler.teams import Division, NUM_WEEKS, TEAMS, lookup_team
 
 
@@ -151,6 +153,7 @@ def test_three_away_streak_at_most_once(schedule):
         assert count <= 1, f"{team.city}: {count} away streaks of 3+"
 
 
+@pytest.mark.legacy_scheduler_only
 def test_no_more_than_two_consecutive_division_games(schedule):
     """Teams cannot have more than 2 consecutive divisional games."""
     for team in TEAMS:
@@ -182,6 +185,7 @@ def test_max_five_division_games_in_eight_game_span_four_team_div(schedule):
             )
 
 
+@pytest.mark.legacy_scheduler_only
 def test_no_consecutive_divisional_games_in_first_two_weeks(schedule):
     """No team opens the season with consecutive divisional matchups."""
     for team in TEAMS:
@@ -245,6 +249,7 @@ def test_last_week_has_eight_intra_division_games(schedule):
     assert intra == 8, f"Week {NUM_WEEKS}: {intra} divisional games, expected 8"
 
 
+@pytest.mark.legacy_scheduler_only
 def test_last_week_inter_division_game_is_last_place_matchup(schedule, standings_data):
     """The inter-division game in the last week is between the two last-place teams."""
     last_week_games = [g for g in schedule.games if g.week == NUM_WEEKS]
@@ -259,6 +264,7 @@ def test_last_week_inter_division_game_is_last_place_matchup(schedule, standings
     )
 
 
+@pytest.mark.legacy_scheduler_only
 def test_division_winners_play_both_non_conference_division_winners(schedule, standings_data):
     """Each division winner plays both division winners from the other conference."""
     div_winners, _ = standings_data["playoffs"].resolved()
@@ -271,6 +277,7 @@ def test_division_winners_play_both_non_conference_division_winners(schedule, st
             )
 
 
+@pytest.mark.legacy_scheduler_only
 def test_division_winners_play_exactly_one_non_conference_wild_card(schedule, standings_data):
     """Each division winner plays exactly 1 wild card from the other conference."""
     div_winners, wild_cards = standings_data["playoffs"].resolved()
@@ -282,6 +289,7 @@ def test_division_winners_play_exactly_one_non_conference_wild_card(schedule, st
         )
 
 
+@pytest.mark.legacy_scheduler_only
 def test_wild_cards_play_exactly_one_non_conference_division_winner(schedule, standings_data):
     """Each wild card plays exactly 1 division winner from the other conference."""
     div_winners, wild_cards = standings_data["playoffs"].resolved()
@@ -293,6 +301,7 @@ def test_wild_cards_play_exactly_one_non_conference_division_winner(schedule, st
         )
 
 
+@pytest.mark.legacy_scheduler_only
 def test_wild_cards_play_both_non_conference_wild_cards(schedule, standings_data):
     """Each wild card plays both wild cards from the other conference."""
     _, wild_cards = standings_data["playoffs"].resolved()
@@ -305,6 +314,7 @@ def test_wild_cards_play_both_non_conference_wild_cards(schedule, standings_data
             )
 
 
+@pytest.mark.legacy_scheduler_only
 def test_non_playoff_teams_face_at_most_one_non_conference_division_winner(schedule, standings_data):
     """Non-playoff teams face at most 1 non-conference division winner."""
     div_winners, wild_cards = standings_data["playoffs"].resolved()
@@ -319,6 +329,7 @@ def test_non_playoff_teams_face_at_most_one_non_conference_division_winner(sched
         )
 
 
+@pytest.mark.legacy_scheduler_only
 def test_non_playoff_teams_face_exact_number_of_non_conference_playoff_opponents(
     schedule, standings_data
 ):

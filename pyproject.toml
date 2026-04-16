@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pnfl-scheduler"
 version = "0.1.0"
-description = "Generates the seasonal game schedule for the PNFL."
+description = "Two-phase PNFL schedule generator built on Google OR-Tools."
 authors = [{ name = "Brian J" }]
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,6 +13,9 @@ dependencies = ["ortools>=9.10"]
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
+
+[project.scripts]
+pnfl-scheduler = "pnfl_scheduler.cli:main"
 
 [project.entry-points."pnfl.commands"]
 generate-schedule = "pnfl_scheduler.cli:main"
@@ -23,6 +26,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--durations=3"
+markers = [
+    "legacy_scheduler_only: tests that only apply to the legacy schedulers",
+    "two_phase_only: tests that only apply to the two-phase scheduler",
+]
 
 [tool.ruff]
 line-length = 140
