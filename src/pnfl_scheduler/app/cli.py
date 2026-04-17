@@ -9,9 +9,9 @@ from pathlib import Path
 from .config import find_config_path, load_config
 from .run import DEFAULT_HISTORY_PATH, generate_schedule
 from ..domain.history import NonConfHistory
-from ..output.html_writer import HtmlScheduleWriter
-from ..output.report import TxtReportWriter, build_schedule_report
-from ..output.txt_schedule_writer import TxtScheduleWriter
+from ..writers.html_writer import HtmlScheduleWriter
+from ..writers.report import TxtReportWriter, build_schedule_report
+from ..writers.txt_schedule_writer import TxtScheduleWriter
 from ..schedulers import DEFAULT_SCHEDULER, available_schedulers
 
 
@@ -77,6 +77,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override the configured solver time limit in seconds.",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Optional random seed override for deterministic schedule generation.",
+    )
+    parser.add_argument(
+        "--season",
+        type=int,
+        required=True,
+        help="The season year being scheduled (e.g. 2026). Used to compute non-conference matchup drought costs.",
+    )
     return parser
 
 
@@ -89,7 +101,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     history_path = args.history or DEFAULT_HISTORY_PATH
     config = load_config(config_path)
     history = NonConfHistory.load(history_path)
-    seed = random.randint(0, 1_000_000)
+    seed = args.seed if args.seed is not None else random.randint(0, 1_000_000)
     started_at = time.perf_counter()
     schedule = generate_schedule(
         scheduler=args.scheduler,
@@ -97,6 +109,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         time_limit=args.time_limit,
         config=config,
         history=history,
+        season=args.season,
         writer=writer,
     )
     elapsed_time_seconds = time.perf_counter() - started_at

@@ -32,11 +32,33 @@ The app reads `generate-schedule.ini` or `generate-schedule.dev.ini` from the
 working directory or `config/`. That file controls solver settings and the
 conference ranking input used by the scheduler.
 
+## How It Builds The Schedule
+
+The scheduler works in 2 phases:
+
+- Phase 1 builds the opponent inventory.
+- Phase 2 places that inventory into weeks and assigns home/away while enforcing
+  the schedule rules.
+
+Opponent inventory comes from these sources:
+
+- Divisional games: every divisional opponent twice.
+- Conference games: every same-conference opponent outside the division once.
+- Non-conference fixed games: 3 opponents from the conference ranking table.
+- Extra 4-team-division game: one AFC East vs NFC East pairing chosen by closest
+  rank gap, skipping fixed pairs.
+- Final H2H game: one remaining AFC vs NFC pairing chosen from non-conference
+  history, preferring the longest time since last played.
+
+That gives 5 non-conference games for 4-team divisions and 4 non-conference
+games for 5-team divisions.
+
 ## CLI
 
 ```powershell
 pnfl-scheduler --output season.html
 pnfl-scheduler --output season.txt
+pnfl-scheduler --output season.html --seed 123456
 pnfl-scheduler --output season.out --format html
 pnfl-scheduler --output season.out --format txt
 pnfl-scheduler --output season.html --txt-report season-report.txt

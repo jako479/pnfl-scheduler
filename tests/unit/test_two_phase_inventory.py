@@ -2,7 +2,7 @@ from collections import Counter
 
 import pytest
 
-from tests.conftest import CONFIG_5_SLOTS, CONFIG_6_SLOTS, CONFIG_7_SLOTS, HISTORY_PATH
+from tests.conftest import CONFIG_5_SLOTS, CONFIG_6_SLOTS, CONFIG_7_SLOTS, HISTORY_PATH, TEST_SEASON
 
 from pnfl_scheduler.domain.history import NonConfHistory
 from pnfl_scheduler.domain.teams import Conference, Division, TEAMS, Team, lookup_team
@@ -27,6 +27,7 @@ def _phase_one_inventory(config) -> tuple[tuple[int, int], ...]:
     return build_phase_one_matchup_inventory(
         conference_ranking=config["conference_ranking"],
         history=NonConfHistory.load(HISTORY_PATH),
+        season=TEST_SEASON,
     )
 
 
@@ -54,10 +55,7 @@ def _nonconference_opponents(team: Team, inventory: tuple[tuple[int, int], ...])
 
 
 def _ranked_teams_by_conf(config) -> dict[Conference, tuple[Team, ...]]:
-    return {
-        conf: tuple(lookup_team(city) for city in config["conference_ranking"][conf])
-        for conf in Conference
-    }
+    return {conf: tuple(lookup_team(city) for city in config["conference_ranking"][conf]) for conf in Conference}
 
 
 def _expected_fixed_opponents(team: Team, config) -> set[Team]:
@@ -65,10 +63,7 @@ def _expected_fixed_opponents(team: Team, config) -> set[Team]:
     conf_ranked = ranked[team.conference]
     other_conf = Conference.NFC if team.conference == Conference.AFC else Conference.AFC
     team_rank = conf_ranked.index(team) + 1
-    return {
-        ranked[other_conf][opp_rank - 1]
-        for opp_rank in FIXED_NONCONF_RANK_OPPONENTS[team_rank]
-    }
+    return {ranked[other_conf][opp_rank - 1] for opp_rank in FIXED_NONCONF_RANK_OPPONENTS[team_rank]}
 
 
 @pytest.mark.parametrize("config", ALL_CONFIGS)

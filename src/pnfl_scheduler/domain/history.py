@@ -71,15 +71,17 @@ class NonConfHistory:
         """Record that these two teams played in the given season."""
         self._matchups[_canonical_key(team_a, team_b)] = season
 
-    def opponent_cost(self, team: Team, opp: Team) -> int:
+    def opponent_cost(self, team: Team, opp: Team, season: int) -> int:
         """Return cost for this matchup. Lower = more overdue.
 
-        null (never played) = 0, then seasons ranked oldest-first:
-        oldest = 1, next oldest = 2, etc.
+        Never played returns 0.
+        Played matchups are ranked by last-played season starting at 1 for
+        the oldest recorded played season and increasing by 1 per season
+        toward the present.
         """
-        non_conf_teams = [t for t in TEAMS if t.conference != team.conference]
-        seasons = sorted({s for t in non_conf_teams if (s := self.last_played(team, t)) is not None})
-        season_to_cost = {s: i + 1 for i, s in enumerate(seasons)}
-
         s = self.last_played(team, opp)
-        return 0 if s is None else season_to_cost[s]
+        if s is None:
+            return 0
+
+        oldest_played = min(played for played in self._matchups.values() if played is not None)
+        return (s - oldest_played) + 1

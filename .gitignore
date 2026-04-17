@@ -22,6 +22,8 @@ htmlcov/
 env/
 .rye/
 .python-version
+outputs/*
+!outputs/.gitkeep
 
 # VS Code
 .vscode/*

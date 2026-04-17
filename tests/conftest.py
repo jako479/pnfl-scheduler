@@ -8,6 +8,7 @@ from pnfl_scheduler.domain.teams import Conference
 from pnfl_scheduler.schedulers import DEFAULT_SCHEDULER, available_schedulers, get_scheduler
 
 HISTORY_PATH = Path(__file__).resolve().parent.parent / "data" / "nonconf_history.json"
+TEST_SEASON = 2048
 
 
 def _build_config(afc_standings, nfc_standings):
@@ -116,6 +117,7 @@ def _solve_for_config(config, config_id, scheduler_kind):
             seed=seed,
             conference_ranking=config["conference_ranking"],
             history=history,
+            season=TEST_SEASON,
         )
     return _solve_cache[cache_key]
 

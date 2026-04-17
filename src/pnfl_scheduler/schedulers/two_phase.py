@@ -1,9 +1,12 @@
 """Two-phase PNFL scheduler.
 
-Phase 1 builds the full opponent inventory in a deterministic order:
-divisional games, conference cross-division games, fixed SOS/rank-table
-non-conference games, the extra East-vs-East SOS fill for four-team divisions,
-then the final history-based non-conference pairings.
+Phase 1 builds the full opponent inventory before any week placement:
+divisional home-and-homes, same-conference cross-division games, 3 fixed
+non-conference opponents from the conference rank table, 1 extra AFC East vs
+NFC East rank-based pairing for teams in the four-team divisions, then 1 final
+history-based AFC vs NFC pairing for every team. That yields 5 non-conference
+games for four-team divisions and 4 non-conference games for five-team
+divisions.
 
 Phase 2 uses CP-SAT to place that full inventory into the calendar while keeping the
 existing weekly/home-away sequencing constraints.
@@ -105,7 +108,6 @@ FIXED_NONCONF_RANK_OPPONENTS: dict[int, tuple[int, int, int]] = {
     9: (6, 8, 9),
 }
 
-DROUGHT_COST_WEIGHT = 100
 TEAM_BY_ID = {team.id: team for team in TEAMS}
 
 
@@ -216,26 +218,22 @@ def _fixed_rank_pairs(ranked_teams_by_conf: Mapping[Conference, Sequence[Team]])
     return fixed_pairs
 
 
-def _mirror_rank_gap(team_a: Team, team_b: Team, rank_by_id: dict[int, int]) -> int:
+def _rank_gap(team_a: Team, team_b: Team, rank_by_id: dict[int, int]) -> int:
     rank_a = rank_by_id[team_a.id]
     rank_b = rank_by_id[team_b.id]
-    target_for_a = 10 - rank_a
-    target_for_b = 10 - rank_b
-    return abs(rank_b - target_for_a) + abs(rank_a - target_for_b)
+    return abs(rank_a - rank_b)
 
 
 def _history_pair_cost(
     team_a: Team,
     team_b: Team,
-    rank_by_id: dict[int, int],
     history: NonConfHistory | None,
+    season: int | None,
 ) -> int:
-    mirror_gap = _mirror_rank_gap(team_a, team_b, rank_by_id)
-    if history is None:
-        return mirror_gap
+    if history is None or season is None:
+        return 0
 
-    drought_cost = history.opponent_cost(team_a, team_b) + history.opponent_cost(team_b, team_a)
-    return DROUGHT_COST_WEIGHT * drought_cost + mirror_gap
+    return history.opponent_cost(team_a, team_b, season)
 
 
 def _add_nonconference_pairs(state: _PhaseOneState, pairs: set[MatchupPair]) -> None:
@@ -345,8 +343,8 @@ def _add_four_team_extra_rank_matchups(
 
 def _add_history_matchups(
     state: _PhaseOneState,
-    rank_by_id: dict[int, int],
     history: NonConfHistory | None,
+    season: int | None,
 ) -> None:
     afc_remaining = [team for team in TEAMS if team.conference == Conference.AFC and state.remaining_nonconference[team.id] > 0]
     nfc_remaining = [team for team in TEAMS if team.conference == Conference.NFC and state.remaining_nonconference[team.id] > 0]
@@ -357,7 +355,7 @@ def _add_history_matchups(
     history_pairs = _solve_exact_assignment(
         afc_remaining,
         nfc_remaining,
-        lambda left, right: _history_pair_cost(left, right, rank_by_id, history),
+        lambda left, right: _history_pair_cost(left, right, history, season),
         forbidden_pairs=state.selected_nonconference,
     )
     _add_nonconference_pairs(state, history_pairs)
@@ -366,6 +364,7 @@ def _add_history_matchups(
 def build_phase_one_matchup_inventory(
     conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None,
     history: NonConfHistory | None = None,
+    season: int | None = None,
 ) -> PhaseOneInventory:
     """Build the full season opponent inventory in phase-1 order."""
     _validate_fixed_rank_table()
@@ -376,7 +375,7 @@ def build_phase_one_matchup_inventory(
     _add_conference_matchups(state)
     _add_fixed_rank_nonconference_matchups(state, ranked_teams_by_conf)
     _add_four_team_extra_rank_matchups(state, ranked_teams_by_conf, rank_by_id)
-    _add_history_matchups(state, rank_by_id, history)
+    _add_history_matchups(state, history, season)
 
     if any(slots != 0 for slots in state.remaining_nonconference.values()):
         unresolved = {TEAM_BY_ID[team_id].city: slots for team_id, slots in state.remaining_nonconference.items() if slots != 0}
@@ -776,12 +775,14 @@ def solve_schedule(
     time_limit: float = 3600.0,
     conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None = None,
     history: NonConfHistory | None = None,
+    season: int | None = None,
 ) -> Schedule:
     """Overall driver: build the phase-1 inventory, then solve phase 2."""
 
     phase_one_inventory = build_phase_one_matchup_inventory(
         conference_ranking=conference_ranking,
         history=history,
+        season=season,
     )
     return solve_phase_two_schedule(
         phase_one_inventory=phase_one_inventory,
