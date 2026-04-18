@@ -21,6 +21,7 @@ class TeamScheduleReport:
     conference_rank: int
     schedule_rank: int
     nonconference_rank: int
+    extra_opponent: str
     history_opponent: str
     history_last_played: str
     nonconference_opponents: tuple[str, ...]
@@ -34,6 +35,7 @@ class ScheduleReport:
     history_path: str | None
     elapsed_time_seconds: float
     teams: tuple[TeamScheduleReport, ...]
+    command_line: str | None = None
 
 
 def _canonical_pair(team_a: Team, team_b: Team) -> tuple[int, int]:
@@ -79,6 +81,17 @@ def _history_pairs(
     return scheduled_nonconference - fixed_pairs - extra_pairs
 
 
+def _extra_pairs(conference_ranking: ConferenceRanking) -> set[tuple[int, int]]:
+    ranked_teams_by_conf = _normalize_conference_ranking(conference_ranking)
+    rank_by_id = _rank_by_id(ranked_teams_by_conf)
+    fixed_pairs = _fixed_rank_pairs(ranked_teams_by_conf)
+    return _solve_four_team_extra_rank_pairs(
+        ranked_teams_by_conf=ranked_teams_by_conf,
+        rank_by_id=rank_by_id,
+        forbidden_pairs=fixed_pairs,
+    )
+
+
 def _schedule_rank_by_team(
     schedule: Schedule,
     conference_ranking: ConferenceRanking,
@@ -122,11 +135,19 @@ def build_schedule_report(
     config_path: Path | None,
     history_path: Path | None,
     elapsed_time_seconds: float,
+    command_line: str | None = None,
 ) -> ScheduleReport:
     rank_by_id, schedule_rank_by_team, nonconference_rank_by_team = _schedule_rank_by_team(
         schedule, conference_ranking
     )
+    extra_pairs = _extra_pairs(conference_ranking)
     history_pairs = _history_pairs(schedule, conference_ranking)
+    extra_opponent_by_team: dict[int, Team] = {}
+    for team_a_id, team_b_id in extra_pairs:
+        team_a = next(team for team in TEAMS if team.id == team_a_id)
+        team_b = next(team for team in TEAMS if team.id == team_b_id)
+        extra_opponent_by_team[team_a.id] = team_b
+        extra_opponent_by_team[team_b.id] = team_a
     history_opponent_by_team: dict[int, Team] = {}
     for team_a_id, team_b_id in history_pairs:
         team_a = next(team for team in TEAMS if team.id == team_a_id)
@@ -136,7 +157,9 @@ def build_schedule_report(
 
     rows: list[TeamScheduleReport] = []
     for team in _ordered_teams():
+        extra_opponent = extra_opponent_by_team.get(team.id)
         history_opponent = history_opponent_by_team.get(team.id)
+        extra_opponent_city = extra_opponent.city if extra_opponent is not None else ""
         if history_opponent is None:
             history_opponent_city = "-"
             history_last_played = "-"
@@ -154,6 +177,7 @@ def build_schedule_report(
                 conference_rank=rank_by_id[team.id],
                 schedule_rank=schedule_rank_by_team[team.id],
                 nonconference_rank=nonconference_rank_by_team[team.id],
+                extra_opponent=extra_opponent_city,
                 history_opponent=history_opponent_city,
                 history_last_played=history_last_played,
                 nonconference_opponents=tuple(
@@ -165,6 +189,7 @@ def build_schedule_report(
     return ScheduleReport(
         seed=seed,
         scheduler_kind=scheduler_kind,
+        command_line=command_line,
         config_path=str(config_path) if config_path is not None else None,
         history_path=str(history_path) if history_path is not None else None,
         elapsed_time_seconds=elapsed_time_seconds,
@@ -186,6 +211,7 @@ class TxtReportWriter:
             "",
             f"Seed: {report.seed}",
             f"Scheduler kind: {report.scheduler_kind}",
+            f"Command line: {report.command_line or '-'}",
             f"Config path: {report.config_path or '-'}",
             f"History path: {report.history_path or '-'}",
             f"Elapsed time (seconds): {report.elapsed_time_seconds:.3f}",
@@ -197,6 +223,7 @@ class TxtReportWriter:
             ("Conf Rank", 10),
             ("Sched Rank", 11),
             ("Non-conf Rank", 13),
+            ("Extra Opponent", 15),
             ("H2H Opponent", 15),
             ("Last Played", 12),
             ("Non-Conference Opponents", 0),
@@ -214,6 +241,7 @@ class TxtReportWriter:
                         str(row.conference_rank).ljust(10),
                         str(row.schedule_rank).ljust(11),
                         str(row.nonconference_rank).ljust(13),
+                        row.extra_opponent.ljust(15),
                         row.history_opponent.ljust(15),
                         row.history_last_played.ljust(12),
                         opponents,

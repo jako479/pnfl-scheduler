@@ -95,17 +95,21 @@ from ..domain.teams import NUM_WEEKS, TEAMS, Conference, Division, Team, lookup_
 
 MatchupPair = tuple[int, int]
 PhaseOneInventory = tuple[MatchupPair, ...]
+# 8/5 ratio results in 1.60x multiplier on H2H cost
+H2H_COST_SCALE = 8
+INVERSE_RANK_COST_SCALE = 5
+UNFAVORABLE_MATCHUP_MULTIPLIER = 3
 
 FIXED_NONCONF_RANK_OPPONENTS: dict[int, tuple[int, int, int]] = {
-    1: (1, 2, 4),
-    2: (1, 3, 5),
-    3: (2, 3, 6),
-    4: (1, 4, 7),
-    5: (2, 5, 8),
-    6: (3, 6, 9),
-    7: (4, 7, 8),
-    8: (5, 7, 9),
-    9: (6, 8, 9),
+    1: (1, 2, 3),
+    2: (1, 2, 4),
+    3: (1, 3, 5),
+    4: (2, 4, 6),
+    5: (3, 5, 7),
+    6: (4, 6, 8),
+    7: (5, 7, 9),
+    8: (6, 8, 9),
+    9: (7, 8, 9),
 }
 
 TEAM_BY_ID = {team.id: team for team in TEAMS}
@@ -218,22 +222,56 @@ def _fixed_rank_pairs(ranked_teams_by_conf: Mapping[Conference, Sequence[Team]])
     return fixed_pairs
 
 
-def _rank_gap(team_a: Team, team_b: Team, rank_by_id: dict[int, int]) -> int:
-    rank_a = rank_by_id[team_a.id]
-    rank_b = rank_by_id[team_b.id]
-    return abs(rank_a - rank_b)
+def _pseudo_inverse_target_rank(rank: int) -> int:
+    if rank == 5:
+        return 5
+    if rank < 5:
+        return rank + 5
+    return rank - 5
+
+
+def _pseudo_inverse_rank_cost(team_a: Team, team_b: Team, rank_by_id: dict[int, int]) -> int:
+    """Directional cost for the final AFC->NFC H2H assignment.
+
+    The preferred opponent ranks are 1->6, 2->7, 3->8, 4->9, 5->5, 6->1,
+    7->2, 8->3, 9->4. For ranks 1-4, moving to a harder opponent than that
+    target costs more per slot. For ranks 6-9, moving to an easier opponent
+    than that target costs more per slot. Rank 5 is the neutral pivot and
+    uses a symmetric cost around rank 5.
+    """
+    team_rank = rank_by_id[team_a.id]
+    target_rank = _pseudo_inverse_target_rank(team_rank)
+    opp_rank = rank_by_id[team_b.id]
+    gap = abs(opp_rank - target_rank)
+    if gap == 0:
+        return 0
+
+    if team_rank == 5:
+        return gap
+
+    # For the last non-conference matchup, we want to provide some relief for the
+    # top teams and challenge the bottom teams. Therefore, using a multiplier to
+    # increase the cost for the top teams to face a harder opponent and for the
+    # bottom teams to face an easier opponent.
+    if team_rank < 5:
+        direction_scale = UNFAVORABLE_MATCHUP_MULTIPLIER if opp_rank < target_rank else 1
+    else:
+        direction_scale = UNFAVORABLE_MATCHUP_MULTIPLIER if opp_rank > target_rank else 1
+    return direction_scale * gap
 
 
 def _history_pair_cost(
     team_a: Team,
     team_b: Team,
+    rank_by_id: dict[int, int],
     history: NonConfHistory | None,
     season: int | None,
 ) -> int:
+    inverse_rank_cost = _pseudo_inverse_rank_cost(team_a, team_b, rank_by_id)
     if history is None or season is None:
-        return 0
+        return INVERSE_RANK_COST_SCALE * inverse_rank_cost
 
-    return history.opponent_cost(team_a, team_b, season)
+    return H2H_COST_SCALE * history.opponent_cost(team_a, team_b, season) + INVERSE_RANK_COST_SCALE * inverse_rank_cost
 
 
 def _add_nonconference_pairs(state: _PhaseOneState, pairs: set[MatchupPair]) -> None:
@@ -343,6 +381,7 @@ def _add_four_team_extra_rank_matchups(
 
 def _add_history_matchups(
     state: _PhaseOneState,
+    rank_by_id: dict[int, int],
     history: NonConfHistory | None,
     season: int | None,
 ) -> None:
@@ -355,7 +394,7 @@ def _add_history_matchups(
     history_pairs = _solve_exact_assignment(
         afc_remaining,
         nfc_remaining,
-        lambda left, right: _history_pair_cost(left, right, history, season),
+        lambda left, right: _history_pair_cost(left, right, rank_by_id, history, season),
         forbidden_pairs=state.selected_nonconference,
     )
     _add_nonconference_pairs(state, history_pairs)
@@ -375,7 +414,7 @@ def build_phase_one_matchup_inventory(
     _add_conference_matchups(state)
     _add_fixed_rank_nonconference_matchups(state, ranked_teams_by_conf)
     _add_four_team_extra_rank_matchups(state, ranked_teams_by_conf, rank_by_id)
-    _add_history_matchups(state, history, season)
+    _add_history_matchups(state, rank_by_id, history, season)
 
     if any(slots != 0 for slots in state.remaining_nonconference.values()):
         unresolved = {TEAM_BY_ID[team_id].city: slots for team_id, slots in state.remaining_nonconference.items() if slots != 0}

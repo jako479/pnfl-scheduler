@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import random
+import subprocess
+import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -28,6 +30,12 @@ def _resolve_writer(parser: argparse.ArgumentParser, output: Path, output_format
 
 def _default_report_path(output: Path) -> Path:
     return output.with_name(f"{output.stem}-report.txt")
+
+
+def _command_line(argv: Sequence[str] | None, prog: str) -> str:
+    if argv is None:
+        return subprocess.list2cmdline([prog, *sys.argv[1:]])
+    return subprocess.list2cmdline([prog, *argv])
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -95,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    command_line = _command_line(argv, parser.prog)
     writer = _resolve_writer(parser, args.output, args.format)
     report_path = args.txt_report or _default_report_path(args.output)
     config_path = args.config or find_config_path()
@@ -119,6 +128,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         history=history,
         seed=seed,
         scheduler_kind=args.scheduler,
+        command_line=command_line,
         config_path=config_path,
         history_path=history_path,
         elapsed_time_seconds=elapsed_time_seconds,
