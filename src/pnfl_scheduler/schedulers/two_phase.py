@@ -779,7 +779,7 @@ class _ScheduleModel:
         self._constraint_week_16_matchups()
         self._constraint_late_divisional_presence()
 
-    def solve(self, seed: int = 0, time_limit: float = 1800.0) -> Schedule:
+    def solve(self, seed: int = 0, time_limit: float = 900.0) -> Schedule:
         solver = cp_model.CpSolver()
         solver.parameters.random_seed = seed
         solver.parameters.randomize_search = True
@@ -801,7 +801,7 @@ class _ScheduleModel:
 def solve_phase_two_schedule(
     phase_one_inventory: PhaseOneInventory,
     seed: int = 0,
-    time_limit: float = 3600.0,
+    time_limit: float = 900.0,
 ) -> Schedule:
     """Place the phase-1 opponent inventory into weeks and home/away slots."""
     schedule_model = _ScheduleModel()
@@ -811,7 +811,7 @@ def solve_phase_two_schedule(
 
 def solve_schedule(
     seed: int = 0,
-    time_limit: float = 3600.0,
+    time_limit: float = 900.0,
     conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None = None,
     history: NonConfHistory | None = None,
     season: int | None = None,

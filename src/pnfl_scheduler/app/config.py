@@ -7,7 +7,7 @@ from pathlib import Path
 PACKAGE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_DIR = PACKAGE_DIR.parent.parent
 
-DEFAULT_TIME_LIMIT = 3600.0
+DEFAULT_TIME_LIMIT = 900.0
 
 CONFIG_CANDIDATES = [
     Path.cwd() / "generate-schedule.dev.ini",

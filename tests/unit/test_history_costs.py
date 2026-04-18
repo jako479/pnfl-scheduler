@@ -114,22 +114,31 @@ def test_opponent_cost_uses_zero_for_never_played_and_contiguous_season_values()
     assert history.opponent_cost(buffalo, new_york, TEST_SEASON) == 5
 
 
-def test_history_pair_cost_uses_history_only_with_no_sos_tiebreak():
+def test_history_pair_cost_uses_inverse_rank_cost_plus_1_6x_h2h():
     buffalo = lookup_team("Buffalo")
     atlanta = lookup_team("Atlanta")
     chicago = lookup_team("Chicago")
+    new_york = lookup_team("New York")
+    ranked = {
+        buffalo.id: 1,
+        atlanta.id: 4,
+        chicago.id: 5,
+        new_york.id: 7,
+    }
 
     history = NonConfHistory(
         {
             "Buffalo|Atlanta": 2045,
             "Buffalo|Chicago": 2045,
+            "Buffalo|New York": 2045,
         }
     )
 
-    assert _history_pair_cost(buffalo, atlanta, history, TEST_SEASON) == 1
-    assert _history_pair_cost(buffalo, chicago, history, TEST_SEASON) == 1
-    assert _history_pair_cost(buffalo, atlanta, None, TEST_SEASON) == 0
-    assert _history_pair_cost(buffalo, atlanta, history, None) == 0
+    assert _history_pair_cost(buffalo, atlanta, ranked, history, TEST_SEASON) == 38
+    assert _history_pair_cost(buffalo, chicago, ranked, history, TEST_SEASON) == 23
+    assert _history_pair_cost(buffalo, new_york, ranked, history, TEST_SEASON) == 13
+    assert _history_pair_cost(buffalo, atlanta, ranked, None, TEST_SEASON) == 30
+    assert _history_pair_cost(buffalo, atlanta, ranked, history, None) == 30
 
 
 def test_nonconf_history_file_has_expected_h2h_costs_for_all_pairs():

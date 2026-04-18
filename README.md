@@ -48,7 +48,9 @@ Opponent inventory comes from these sources:
 - Extra 4-team-division game: one AFC East vs NFC East pairing chosen by closest
   rank gap, skipping fixed pairs.
 - Final H2H game: one remaining AFC vs NFC pairing chosen from non-conference
-  history, preferring the longest time since last played.
+  history plus pseudo-inverse rank cost. The final pairing targets
+  `1v6, 2v7, 3v8, 4v9, 5v5, 6v1, 7v2, 8v3, 9v4`, with H2H weighted at
+  `1.6x` the inverse-rank term.
 
 That gives 5 non-conference games for 4-team divisions and 4 non-conference
 games for 5-team divisions.
@@ -56,18 +58,18 @@ games for 5-team divisions.
 ## CLI
 
 ```powershell
-pnfl-scheduler --output season.html
-pnfl-scheduler --output season.txt
-pnfl-scheduler --output season.html --seed 123456
-pnfl-scheduler --output season.out --format html
-pnfl-scheduler --output season.out --format txt
-pnfl-scheduler --output season.html --txt-report season-report.txt
+pnfl-scheduler --output season.html --season 2026
+pnfl-scheduler --output season.txt --season 2026
+pnfl-scheduler --output season.html --season 2026 --seed 123456
+pnfl-scheduler --output season.out --format html --season 2026
+pnfl-scheduler --output season.out --format txt --season 2026
+pnfl-scheduler --output season.html --season 2026 --txt-report season-report.txt
 ```
 
 If the console script is not available in the active environment, use:
 
 ```powershell
-python -m pnfl_scheduler.app.cli --output season.html
+python -m pnfl_scheduler.app.cli --output season.html --season 2026
 ```
 
 The schedule writer is chosen from `--format` when provided, otherwise from the
