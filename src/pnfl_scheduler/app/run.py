@@ -5,6 +5,7 @@ from pathlib import Path
 from .config import AppConfig, PROJECT_DIR, load_config
 from ..domain.history import NonConfHistory
 from ..domain.schedule import Schedule
+from ..domain.teams import build_teams
 from ..writers.writer import ScheduleWriter
 from ..schedulers import DEFAULT_SCHEDULER, get_scheduler
 
@@ -25,10 +26,12 @@ def generate_schedule(
 ) -> Schedule:
     """Generate a schedule and optionally hand it to an injected writer."""
     app_config = config or load_config(config_path)
+    teams = build_teams(app_config.Divisions.as_mapping())
     schedule = get_scheduler(scheduler)(
         seed=seed,
         time_limit=time_limit if time_limit is not None else app_config.Settings.TimeLimit,
-        conference_ranking=app_config.ConferenceRanking,
+        teams=teams,
+        conference_rankings=app_config.ConferenceRankings,
         history=history or NonConfHistory.load(history_path or DEFAULT_HISTORY_PATH),
         season=season,
     )

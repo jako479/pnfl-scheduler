@@ -74,8 +74,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the non-conference history JSON file.",
     )
     parser.add_argument(
-        "--txt-report",
+        "--report",
         type=Path,
+        dest="report",
         default=None,
         help="Optional override path for the human-readable text report. Defaults to <output-stem>-report.txt.",
     )
@@ -105,7 +106,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     command_line = _command_line(argv, parser.prog)
     writer = _resolve_writer(parser, args.output, args.format)
-    report_path = args.txt_report or _default_report_path(args.output)
+    report_path = args.report or _default_report_path(args.output)
     config_path = args.config or find_config_path()
     history_path = args.history or DEFAULT_HISTORY_PATH
     config = load_config(config_path)
@@ -124,7 +125,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     elapsed_time_seconds = time.perf_counter() - started_at
     report = build_schedule_report(
         schedule=schedule,
-        conference_ranking=config.ConferenceRanking,
+        conference_rankings=config.ConferenceRankings,
         history=history,
         seed=seed,
         scheduler_kind=args.scheduler,

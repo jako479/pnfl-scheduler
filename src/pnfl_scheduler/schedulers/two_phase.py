@@ -4,9 +4,11 @@ Phase 1 builds the full opponent inventory before any week placement:
 divisional home-and-homes, same-conference cross-division games, 3 fixed
 non-conference opponents from the conference rank table, 1 extra AFC East vs
 NFC East rank-based pairing for teams in the four-team divisions, then 1 final
-history-based AFC vs NFC pairing for every team. That yields 5 non-conference
-games for four-team divisions and 4 non-conference games for five-team
-divisions.
+history-based AFC vs NFC pairing for every team. That final H2H step combines
+pseudo-inverse rank cost with a current-season gap-based history cost where
+older matchups score lower and never-played matchups score below the oldest
+played matchup. That yields 5 non-conference games for four-team divisions and
+4 non-conference games for five-team divisions.
 
 Phase 2 uses CP-SAT to place that full inventory into the calendar while keeping the
 existing weekly/home-away sequencing constraints.
@@ -88,16 +90,16 @@ from dataclasses import dataclass
 from ortools.graph.python import linear_sum_assignment
 from ortools.sat.python import cp_model
 
-from ..app.config import ConferenceRanking
+from ..app.config import ConferenceRankings
 from ..domain.history import NonConfHistory
 from ..domain.schedule import Game, Schedule
-from ..domain.teams import NUM_WEEKS, TEAMS, Conference, Division, Team, lookup_team
+from ..domain.teams import FIVE_TEAM_DIVISIONS, FOUR_TEAM_DIVISIONS, NUM_WEEKS, Conference, Division, Team, lookup_team
 
 MatchupPair = tuple[int, int]
 PhaseOneInventory = tuple[MatchupPair, ...]
-# 8/5 ratio results in 1.60x multiplier on H2H cost
-H2H_COST_SCALE = 8
-INVERSE_RANK_COST_SCALE = 5
+# 1/1 keeps H2H and inverse-rank costs at equal weight.
+H2H_COST_SCALE = 1
+INVERSE_RANK_COST_SCALE = 1
 UNFAVORABLE_MATCHUP_MULTIPLIER = 3
 
 FIXED_NONCONF_RANK_OPPONENTS: dict[int, tuple[int, int, int]] = {
@@ -111,8 +113,6 @@ FIXED_NONCONF_RANK_OPPONENTS: dict[int, tuple[int, int, int]] = {
     8: (6, 8, 9),
     9: (7, 8, 9),
 }
-
-TEAM_BY_ID = {team.id: team for team in TEAMS}
 
 
 class SchedulerError(RuntimeError):
@@ -130,47 +130,44 @@ def _canonical_pair(team_a: Team, team_b: Team) -> MatchupPair:
     return (min(team_a.id, team_b.id), max(team_a.id, team_b.id))
 
 
-def _is_nonconference_pair(pair: MatchupPair) -> bool:
-    return TEAM_BY_ID[pair[0]].conference != TEAM_BY_ID[pair[1]].conference
-
-
 def _required_nonconference_games(team: Team) -> int:
-    return 5 if team.division in (Division.AFC_EAST, Division.NFC_EAST) else 4
+    return 5 if team.division in FOUR_TEAM_DIVISIONS else 4
 
 
-def _new_phase_one_state() -> _PhaseOneState:
+def _new_phase_one_state(teams: Sequence[Team]) -> _PhaseOneState:
     return _PhaseOneState(
         matchups=[],
         selected_nonconference=set(),
-        remaining_nonconference={team.id: _required_nonconference_games(team) for team in TEAMS},
+        remaining_nonconference={team.id: _required_nonconference_games(team) for team in teams},
     )
 
 
 def _normalize_conference_ranking(
-    conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None,
+    conference_rankings: ConferenceRankings | Mapping[Conference | str, Sequence[str]] | None,
+    teams: Sequence[Team],
 ) -> dict[Conference, tuple[Team, ...]]:
-    if conference_ranking is None:
+    if conference_rankings is None:
         raise SchedulerError("Two-phase scheduler requires conference_ranking input")
 
-    if isinstance(conference_ranking, ConferenceRanking):
+    if isinstance(conference_rankings, ConferenceRankings):
         raw_rankings: dict[Conference, Sequence[str]] = {
-            Conference.AFC: conference_ranking.AFC,
-            Conference.NFC: conference_ranking.NFC,
+            Conference.AFC: conference_rankings.AFC,
+            Conference.NFC: conference_rankings.NFC,
         }
     else:
         raw_rankings = {}
         for conf in Conference:
-            if conf in conference_ranking:
-                raw_rankings[conf] = conference_ranking[conf]
-            elif conf.value in conference_ranking:
-                raw_rankings[conf] = conference_ranking[conf.value]
+            if conf in conference_rankings:
+                raw_rankings[conf] = conference_rankings[conf]
+            elif conf.value in conference_rankings:
+                raw_rankings[conf] = conference_rankings[conf.value]
             else:
                 raise SchedulerError(f"conference_ranking missing {conf.value} list")
 
     ranked_teams_by_conf: dict[Conference, tuple[Team, ...]] = {}
     all_ranked_ids: set[int] = set()
     for conf in Conference:
-        ranked_teams = tuple(lookup_team(city) for city in raw_rankings[conf])
+        ranked_teams = tuple(lookup_team(teams, city) for city in raw_rankings[conf])
         if len(ranked_teams) != 9:
             raise SchedulerError(f"Expected 9 ranked {conf.value} teams, got {len(ranked_teams)}")
         if any(team.conference != conf for team in ranked_teams):
@@ -183,7 +180,7 @@ def _normalize_conference_ranking(
         all_ranked_ids |= {team.id for team in ranked_teams}
         ranked_teams_by_conf[conf] = ranked_teams
 
-    if len(all_ranked_ids) != len(TEAMS):
+    if len(all_ranked_ids) != len(teams):
         raise SchedulerError("Conference ranking must include all 18 teams exactly once")
     return ranked_teams_by_conf
 
@@ -325,18 +322,18 @@ def _solve_exact_assignment(
     return selected
 
 
-def _add_divisional_matchups(state: _PhaseOneState) -> None:
-    for i, team_i in enumerate(TEAMS):
-        for team_j in TEAMS[i + 1 :]:
+def _add_divisional_matchups(state: _PhaseOneState, teams: Sequence[Team]) -> None:
+    for i, team_i in enumerate(teams):
+        for team_j in teams[i + 1 :]:
             if team_i.division == team_j.division:
                 pair = _canonical_pair(team_i, team_j)
                 state.matchups.append(pair)
                 state.matchups.append(pair)
 
 
-def _add_conference_matchups(state: _PhaseOneState) -> None:
-    for i, team_i in enumerate(TEAMS):
-        for team_j in TEAMS[i + 1 :]:
+def _add_conference_matchups(state: _PhaseOneState, teams: Sequence[Team]) -> None:
+    for i, team_i in enumerate(teams):
+        for team_j in teams[i + 1 :]:
             if team_i.conference == team_j.conference and team_i.division != team_j.division:
                 state.matchups.append(_canonical_pair(team_i, team_j))
 
@@ -381,14 +378,16 @@ def _add_four_team_extra_rank_matchups(
 
 def _add_history_matchups(
     state: _PhaseOneState,
+    teams: Sequence[Team],
     rank_by_id: dict[int, int],
     history: NonConfHistory | None,
     season: int | None,
 ) -> None:
-    afc_remaining = [team for team in TEAMS if team.conference == Conference.AFC and state.remaining_nonconference[team.id] > 0]
-    nfc_remaining = [team for team in TEAMS if team.conference == Conference.NFC and state.remaining_nonconference[team.id] > 0]
+    team_by_id = {team.id: team for team in teams}
+    afc_remaining = [team for team in teams if team.conference == Conference.AFC and state.remaining_nonconference[team.id] > 0]
+    nfc_remaining = [team for team in teams if team.conference == Conference.NFC and state.remaining_nonconference[team.id] > 0]
     if {state.remaining_nonconference[team.id] for team in afc_remaining + nfc_remaining} - {1}:
-        unresolved = {TEAM_BY_ID[team_id].city: remaining for team_id, remaining in state.remaining_nonconference.items() if remaining > 0}
+        unresolved = {team_by_id[team_id].city: remaining for team_id, remaining in state.remaining_nonconference.items() if remaining > 0}
         raise SchedulerError(f"History step expected only single-slot teams, got {unresolved}")
 
     history_pairs = _solve_exact_assignment(
@@ -401,23 +400,25 @@ def _add_history_matchups(
 
 
 def build_phase_one_matchup_inventory(
-    conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None,
+    teams: Sequence[Team],
+    conference_rankings: ConferenceRankings | Mapping[Conference | str, Sequence[str]] | None,
     history: NonConfHistory | None = None,
     season: int | None = None,
 ) -> PhaseOneInventory:
     """Build the full season opponent inventory in phase-1 order."""
     _validate_fixed_rank_table()
-    ranked_teams_by_conf = _normalize_conference_ranking(conference_ranking)
+    ranked_teams_by_conf = _normalize_conference_ranking(conference_rankings, teams)
     rank_by_id = _rank_by_id(ranked_teams_by_conf)
-    state = _new_phase_one_state()
-    _add_divisional_matchups(state)
-    _add_conference_matchups(state)
+    state = _new_phase_one_state(teams)
+    _add_divisional_matchups(state, teams)
+    _add_conference_matchups(state, teams)
     _add_fixed_rank_nonconference_matchups(state, ranked_teams_by_conf)
     _add_four_team_extra_rank_matchups(state, ranked_teams_by_conf, rank_by_id)
-    _add_history_matchups(state, rank_by_id, history, season)
+    _add_history_matchups(state, teams, rank_by_id, history, season)
 
     if any(slots != 0 for slots in state.remaining_nonconference.values()):
-        unresolved = {TEAM_BY_ID[team_id].city: slots for team_id, slots in state.remaining_nonconference.items() if slots != 0}
+        team_by_id = {team.id: team for team in teams}
+        unresolved = {team_by_id[team_id].city: slots for team_id, slots in state.remaining_nonconference.items() if slots != 0}
         raise SchedulerError(f"Non-conference inventory left unresolved slots: {unresolved}")
     if len(state.selected_nonconference) != 40:
         raise SchedulerError(f"Expected 40 non-conference games, got {len(state.selected_nonconference)}")
@@ -425,25 +426,6 @@ def build_phase_one_matchup_inventory(
         raise SchedulerError(f"Expected 144 total matchups in phase-1 inventory, got {len(state.matchups)}")
 
     return tuple(state.matchups)
-
-
-def compute_nonconference_inventory(
-    conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None,
-    history: NonConfHistory | None = None,
-) -> set[MatchupPair]:
-    """Return just the non-conference subset of the phase-1 inventory.
-
-    This wrapper is kept so existing callers can inspect the selected
-    non-conference opponent set without needing the full inventory.
-    """
-    return {
-        pair
-        for pair in build_phase_one_matchup_inventory(
-            conference_ranking=conference_ranking,
-            history=history,
-        )
-        if _is_nonconference_pair(pair)
-    }
 
 
 class _ScheduleModel:
@@ -481,20 +463,21 @@ class _ScheduleModel:
     C15 Each team must play at least one divisional game in the last two weeks.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, teams: Sequence[Team]) -> None:
         self.model = cp_model.CpModel()
+        self.teams = tuple(teams)
 
-        self.team_ids = [t.id for t in TEAMS]
+        self.team_ids = [t.id for t in self.teams]
         self.weeks = range(NUM_WEEKS)
         self.home_games_per_team = 8
-        self.team_by_id = {t.id: t for t in TEAMS}
+        self.team_by_id = {t.id: t for t in self.teams}
 
         self.div_opponents: dict[int, list[int]] = {}
-        for team in TEAMS:
-            self.div_opponents[team.id] = [opp.id for opp in TEAMS if opp.division == team.division and opp.id != team.id]
+        for team in self.teams:
+            self.div_opponents[team.id] = [opp.id for opp in self.teams if opp.division == team.division and opp.id != team.id]
 
-        self.four_team_ids = {t.id for t in TEAMS if t.division in (Division.AFC_EAST, Division.NFC_EAST)}
-        self.five_team_ids = {t.id for t in TEAMS if t.division in (Division.AFC_WEST, Division.NFC_WEST)}
+        self.four_team_ids = {t.id for t in self.teams if t.division in FOUR_TEAM_DIVISIONS}
+        self.five_team_ids = {t.id for t in self.teams if t.division in FIVE_TEAM_DIVISIONS}
 
         self.divisional_pairs: list[MatchupPair] = []
         self.conference_pairs: list[MatchupPair] = []
@@ -800,11 +783,12 @@ class _ScheduleModel:
 
 def solve_phase_two_schedule(
     phase_one_inventory: PhaseOneInventory,
+    teams: Sequence[Team],
     seed: int = 0,
     time_limit: float = 900.0,
 ) -> Schedule:
     """Place the phase-1 opponent inventory into weeks and home/away slots."""
-    schedule_model = _ScheduleModel()
+    schedule_model = _ScheduleModel(teams)
     schedule_model.build(phase_one_inventory=phase_one_inventory)
     return schedule_model.solve(seed=seed, time_limit=time_limit)
 
@@ -812,19 +796,24 @@ def solve_phase_two_schedule(
 def solve_schedule(
     seed: int = 0,
     time_limit: float = 900.0,
-    conference_ranking: ConferenceRanking | Mapping[Conference | str, Sequence[str]] | None = None,
+    teams: Sequence[Team] | None = None,
+    conference_rankings: ConferenceRankings | Mapping[Conference | str, Sequence[str]] | None = None,
     history: NonConfHistory | None = None,
     season: int | None = None,
 ) -> Schedule:
     """Overall driver: build the phase-1 inventory, then solve phase 2."""
+    if teams is None:
+        raise SchedulerError("Two-phase scheduler requires teams input")
 
     phase_one_inventory = build_phase_one_matchup_inventory(
-        conference_ranking=conference_ranking,
+        teams=teams,
+        conference_rankings=conference_rankings,
         history=history,
         season=season,
     )
     return solve_phase_two_schedule(
         phase_one_inventory=phase_one_inventory,
+        teams=teams,
         seed=seed,
         time_limit=time_limit,
     )

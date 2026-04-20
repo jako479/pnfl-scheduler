@@ -4,13 +4,16 @@ from collections.abc import Callable
 
 from ..domain.schedule import Schedule
 from .two_phase import solve_schedule as solve_schedule_two_phase
+from .two_phase_rank import solve_schedule as solve_schedule_two_phase_rank
 
 SchedulerFunc = Callable[..., Schedule]
 
 DEFAULT_SCHEDULER = "two-phase"
+RANK_ONLY_SCHEDULER = "two-phase-rank"
 
 SCHEDULERS: dict[str, SchedulerFunc] = {
     DEFAULT_SCHEDULER: solve_schedule_two_phase,
+    RANK_ONLY_SCHEDULER: solve_schedule_two_phase_rank,
 }
 
 

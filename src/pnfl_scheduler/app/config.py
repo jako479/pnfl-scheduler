@@ -4,6 +4,8 @@ import configparser
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..domain.teams import Division
+
 PACKAGE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_DIR = PACKAGE_DIR.parent.parent
 
@@ -25,15 +27,32 @@ class Settings:
 
 
 @dataclass(frozen=True)
-class ConferenceRanking:
-    AFC: list[str]
-    NFC: list[str]
+class ConferenceRankings:
+    AFC: tuple[str, ...]
+    NFC: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Divisions:
+    AFCEast: tuple[str, ...]
+    AFCWest: tuple[str, ...]
+    NFCEast: tuple[str, ...]
+    NFCWest: tuple[str, ...]
+
+    def as_mapping(self) -> dict[Division, tuple[str, ...]]:
+        return {
+            Division.AFC_EAST: self.AFCEast,
+            Division.AFC_WEST: self.AFCWest,
+            Division.NFC_EAST: self.NFCEast,
+            Division.NFC_WEST: self.NFCWest,
+        }
 
 
 @dataclass(frozen=True)
 class AppConfig:
     Settings: Settings
-    ConferenceRanking: ConferenceRanking
+    ConferenceRankings: ConferenceRankings
+    Divisions: Divisions
 
 
 def find_config_path() -> Path:
@@ -43,9 +62,9 @@ def find_config_path() -> Path:
     )
 
 
-def _parse_ranking(cp: configparser.ConfigParser, key: str) -> list[str]:
-    raw = cp.get("ConferenceRanking", key, fallback="")
-    return [line.strip() for line in raw.splitlines() if line.strip()]
+def _parse_multiline(cp: configparser.ConfigParser, section: str, key: str) -> tuple[str, ...]:
+    raw = cp.get(section, key, fallback="")
+    return tuple(line.strip() for line in raw.splitlines() if line.strip())
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
@@ -57,8 +76,14 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         Settings=Settings(
             TimeLimit=cp.getfloat("Settings", "TimeLimit", fallback=DEFAULT_TIME_LIMIT),
         ),
-        ConferenceRanking=ConferenceRanking(
-            AFC=_parse_ranking(cp, "AFC"),
-            NFC=_parse_ranking(cp, "NFC"),
+        ConferenceRankings=ConferenceRankings(
+            AFC=_parse_multiline(cp, "ConferenceRanking", "AFC"),
+            NFC=_parse_multiline(cp, "ConferenceRanking", "NFC"),
+        ),
+        Divisions=Divisions(
+            AFCEast=_parse_multiline(cp, "Divisions", "AFCEast"),
+            AFCWest=_parse_multiline(cp, "Divisions", "AFCWest"),
+            NFCEast=_parse_multiline(cp, "Divisions", "NFCEast"),
+            NFCWest=_parse_multiline(cp, "Divisions", "NFCWest"),
         ),
     )

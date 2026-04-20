@@ -6,9 +6,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .teams import TEAMS, Conference, Team
+from .teams import Conference, Team
 
 FORMAT_VERSION = 1
+
+# Lowers the H2H cost for matchups between coaches that have never played each other
+NEVER_PLAYED_COST_BONUS = 1
 
 
 def _canonical_key(team_a: Team, team_b: Team) -> str:
@@ -18,32 +21,11 @@ def _canonical_key(team_a: Team, team_b: Team) -> str:
     return f"{afc.city}|{nfc.city}"
 
 
-def _all_nonconf_keys() -> list[str]:
-    """Return all 81 canonical non-conference pair keys."""
-    from .teams import Division
-
-    div_order = [Division.AFC_EAST, Division.AFC_WEST]
-    nfc_div_order = [Division.NFC_EAST, Division.NFC_WEST]
-
-    afc: list[Team] = []
-    for div in div_order:
-        afc.extend(sorted((t for t in TEAMS if t.division == div), key=lambda t: t.city))
-
-    nfc: list[Team] = []
-    for div in nfc_div_order:
-        nfc.extend(sorted((t for t in TEAMS if t.division == div), key=lambda t: t.city))
-
-    return [f"{a.city}|{n.city}" for a in afc for n in nfc]
-
-
 class NonConfHistory:
     """Tracks the last season each non-conference pair played."""
 
     def __init__(self, matchups: dict[str, int | None] | None = None) -> None:
-        if matchups is None:
-            self._matchups: dict[str, int | None] = {k: None for k in _all_nonconf_keys()}
-        else:
-            self._matchups = dict(matchups)
+        self._matchups: dict[str, int | None] = {} if matchups is None else dict(matchups)
 
     @classmethod
     def load(cls, path: Path | str) -> NonConfHistory:
@@ -65,23 +47,44 @@ class NonConfHistory:
 
     def last_played(self, team_a: Team, team_b: Team) -> int | None:
         """Return the last season these two teams played, or None if never."""
-        return self._matchups[_canonical_key(team_a, team_b)]
+        return self._matchups.get(_canonical_key(team_a, team_b))
 
     def record_matchup(self, team_a: Team, team_b: Team, season: int) -> None:
         """Record that these two teams played in the given season."""
         self._matchups[_canonical_key(team_a, team_b)] = season
 
+    @staticmethod
+    def _played_opponent_cost(last_played: int, season: int) -> int:
+        """Return gap-based cost for a played matchup.
+
+        Examples:
+        - last season -> 0
+        - 2 seasons ago -> -1
+        - 3 seasons ago -> -2
+        """
+        return last_played - season + 1
+
+    def _never_played_cost(self, season: int) -> int:
+        """Return a cost one lower than the oldest played matchup cost."""
+        played_seasons = [played for played in self._matchups.values() if played is not None and played < season]
+        if not played_seasons:
+            raise ValueError("Cannot compute never-played cost without any prior played matchups in history")
+        oldest_played = min(played_seasons)
+        return self._played_opponent_cost(oldest_played, season) - NEVER_PLAYED_COST_BONUS
+
     def opponent_cost(self, team: Team, opp: Team, season: int) -> int:
         """Return cost for this matchup. Lower = more overdue.
 
-        Never played returns 0.
-        Played matchups are ranked by last-played season starting at 1 for
-        the oldest recorded played season and increasing by 1 per season
-        toward the present.
+        Played matchups use actual gap from the current season:
+        - last season -> 0
+        - 2 seasons ago -> -1
+        - 3 seasons ago -> -2
+
+        Never played returns one lower than the oldest played matchup cost for
+        the current season.
         """
         s = self.last_played(team, opp)
         if s is None:
-            return 0
+            return self._never_played_cost(season)
 
-        oldest_played = min(played for played in self._matchups.values() if played is not None)
-        return (s - oldest_played) + 1
+        return self._played_opponent_cost(s, season)

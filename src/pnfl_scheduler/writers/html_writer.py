@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TypeVar
 
 from ..domain.schedule import Game, Schedule
-from ..domain.teams import TEAMS, Division, Team
+from ..domain.teams import Team, ordered_teams
 
 
 T = TypeVar("T")
@@ -24,20 +24,16 @@ def _week_games(schedule: Schedule) -> dict[int, list[Game]]:
 
 
 def _team_games(schedule: Schedule) -> dict[int, list[Game]]:
+    teams = _schedule_teams(schedule)
     return {
         team.id: sorted(schedule.games_for(team), key=lambda g: g.week)
-        for team in TEAMS
+        for team in teams
     }
 
 
-def _ordered_teams() -> list[Team]:
-    division_order = {
-        Division.AFC_EAST: 0,
-        Division.AFC_WEST: 1,
-        Division.NFC_EAST: 2,
-        Division.NFC_WEST: 3,
-    }
-    return sorted(TEAMS, key=lambda team: (division_order[team.division], team.city))
+def _schedule_teams(schedule: Schedule) -> list[Team]:
+    teams = {team for game in schedule.games for team in (game.home, game.away)}
+    return ordered_teams(tuple(teams))
 
 
 def _format_week_game(game: Game) -> str:
@@ -150,7 +146,7 @@ class HtmlScheduleWriter:
 
     def _render_team_by_team(self, schedule: Schedule) -> list[str]:
         games_by_team = _team_games(schedule)
-        teams = _ordered_teams()
+        teams = _schedule_teams(schedule)
         team_columns = _chunked(teams, 2)
         col_width = 42
         season = f"<EM>{escape(self.season_label)}</EM>" if self.season_label else ""
