@@ -1,131 +1,54 @@
 import random
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
 from pnfl_scheduler.domain.history import NonConfHistory
-from pnfl_scheduler.domain.teams import Conference
+from pnfl_scheduler.domain.league import League, build_league
+from pnfl_scheduler.domain.teams import Division
 from pnfl_scheduler.schedulers import DEFAULT_SCHEDULER, available_schedulers, get_scheduler
+from pnfl_scheduler.schedulers.types import SchedulerResult
 
 HISTORY_PATH = Path(__file__).resolve().parent.parent / "data" / "nonconf_history.json"
 TEST_SEASON = 2048
 
 
-def _build_config(afc_standings, nfc_standings):
-    return {
-        "conference_ranking": {
-            Conference.AFC: tuple(afc_standings),
-            Conference.NFC: tuple(nfc_standings),
-        },
-    }
+_DIVISIONS: dict[str, Sequence[str]] = {
+    Division.AFC_EAST.section_name: ("New England", "Buffalo", "Miami", "Jacksonville"),
+    Division.AFC_WEST.section_name: ("Cincinnati", "Denver", "Los Angeles", "Las Vegas", "Pittsburgh"),
+    Division.NFC_EAST.section_name: ("Philadelphia", "Washington", "New York", "Atlanta"),
+    Division.NFC_WEST.section_name: ("Chicago", "Green Bay", "Minnesota", "Seattle", "San Francisco"),
+}
+
+
+def _make_league(afc_standings: Sequence[str], nfc_standings: Sequence[str]) -> League:
+    return build_league(_DIVISIONS, tuple(afc_standings), tuple(nfc_standings))
 
 
 # Baseline conference ranking variant.
-CONFIG_5_SLOTS = _build_config(
-    (
-        "New England",
-        "Cincinnati",
-        "Pittsburgh",
-        "Denver",
-        "Miami",
-        "Buffalo",
-        "Jacksonville",
-        "Los Angeles",
-        "Las Vegas",
-    ),
-    (
-        "Washington",
-        "Chicago",
-        "Minnesota",
-        "San Francisco",
-        "Atlanta",
-        "New York",
-        "Philadelphia",
-        "Green Bay",
-        "Seattle",
-    ),
+LEAGUE_5_SLOTS = _make_league(
+    ("New England", "Cincinnati", "Pittsburgh", "Denver", "Miami", "Buffalo", "Jacksonville", "Los Angeles", "Las Vegas"),
+    ("Washington", "Chicago", "Minnesota", "San Francisco", "Atlanta", "New York", "Philadelphia", "Green Bay", "Seattle"),
 )
 
 # Alternate conference ranking variant.
-CONFIG_6_SLOTS = _build_config(
-    (
-        "New England",
-        "Cincinnati",
-        "Miami",
-        "Pittsburgh",
-        "Buffalo",
-        "Jacksonville",
-        "Denver",
-        "Los Angeles",
-        "Las Vegas",
-    ),
-    (
-        "Washington",
-        "Chicago",
-        "Atlanta",
-        "Minnesota",
-        "New York",
-        "Philadelphia",
-        "San Francisco",
-        "Green Bay",
-        "Seattle",
-    ),
+LEAGUE_6_SLOTS = _make_league(
+    ("New England", "Cincinnati", "Miami", "Pittsburgh", "Buffalo", "Jacksonville", "Denver", "Los Angeles", "Las Vegas"),
+    ("Washington", "Chicago", "Atlanta", "Minnesota", "New York", "Philadelphia", "San Francisco", "Green Bay", "Seattle"),
 )
 
 # Alternate conference ranking variant.
-CONFIG_7_SLOTS = _build_config(
-    (
-        "New England",
-        "Cincinnati",
-        "Miami",
-        "Buffalo",
-        "Jacksonville",
-        "Pittsburgh",
-        "Denver",
-        "Los Angeles",
-        "Las Vegas",
-    ),
-    (
-        "Washington",
-        "Chicago",
-        "Atlanta",
-        "New York",
-        "Philadelphia",
-        "Minnesota",
-        "San Francisco",
-        "Green Bay",
-        "Seattle",
-    ),
+LEAGUE_7_SLOTS = _make_league(
+    ("New England", "Cincinnati", "Miami", "Buffalo", "Jacksonville", "Pittsburgh", "Denver", "Los Angeles", "Las Vegas"),
+    ("Washington", "Chicago", "Atlanta", "New York", "Philadelphia", "Minnesota", "San Francisco", "Green Bay", "Seattle"),
 )
 
-_solve_cache = {}
 
-
-def _selected_scheduler(pytest_config) -> str:
-    return pytest_config.getoption("--scheduler")
-
-
-def _solve_for_config(config, config_id, scheduler_kind):
-    cache_key = (config_id, scheduler_kind)
-    if cache_key not in _solve_cache:
-        seed = random.randint(0, 1_000_000)
-        label = f"{scheduler_kind}/{config_id}"
-        print(f"\nScheduler seed ({label}): {seed}")
-        history = NonConfHistory.load(HISTORY_PATH)
-        scheduler = get_scheduler(scheduler_kind)
-        _solve_cache[cache_key] = scheduler(
-            seed=seed,
-            conference_ranking=config["conference_ranking"],
-            history=history,
-            season=TEST_SEASON,
-        )
-    return _solve_cache[cache_key]
-
-
-ALL_CONFIGS = [
-    pytest.param(CONFIG_5_SLOTS, id="5-free-slots"),
-    pytest.param(CONFIG_6_SLOTS, id="6-free-slots"),
-    pytest.param(CONFIG_7_SLOTS, id="7-free-slots"),
+_ALL_LEAGUES = [
+    pytest.param(LEAGUE_5_SLOTS, id="5-free-slots"),
+    pytest.param(LEAGUE_6_SLOTS, id="6-free-slots"),
+    pytest.param(LEAGUE_7_SLOTS, id="7-free-slots"),
 ]
 
 
@@ -153,27 +76,50 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip)
 
 
-@pytest.fixture(params=ALL_CONFIGS, scope="session")
-def config(request):
-    """The raw config dict + solved schedule, paired together."""
-    cfg = request.param
-    cache_key = id(cfg)
-    scheduler_kind = _selected_scheduler(request.config)
-    sched = _solve_for_config(cfg, cache_key, scheduler_kind=scheduler_kind)
-    return cfg, sched
+_solve_cache: dict[tuple[int, str], SchedulerResult] = {}
+
+
+def _solve_for_league(league: League, scheduler_kind: str) -> SchedulerResult:
+    cache_key = (id(league), scheduler_kind)
+    if cache_key not in _solve_cache:
+        seed = random.randint(0, 1_000_000)
+        print(f"\nScheduler seed ({scheduler_kind}): {seed}")
+        history = NonConfHistory.load(HISTORY_PATH)
+        scheduler = get_scheduler(scheduler_kind)
+        _solve_cache[cache_key] = scheduler(
+            league=league,
+            seed=seed,
+            history=history,
+            season=TEST_SEASON,
+        )
+    return _solve_cache[cache_key]
+
+
+@pytest.fixture(params=_ALL_LEAGUES, scope="session")
+def league(request) -> League:
+    return request.param
 
 
 @pytest.fixture(scope="session")
-def schedule(config):
-    return config[1]
+def teams(league: League):
+    return league.teams
 
 
 @pytest.fixture(scope="session")
-def standings_data(config):
-    return config[0]
+def scheduler_result(league, request) -> SchedulerResult:
+    return _solve_for_league(league, request.config.getoption("--scheduler"))
+
+
+@pytest.fixture(scope="session")
+def schedule(scheduler_result):
+    return scheduler_result.schedule
+
+
+@pytest.fixture(scope="session")
+def matchup_plan(scheduler_result):
+    return scheduler_result.matchup_plan
 
 
 @pytest.fixture(scope="session")
 def history():
-    """The NonConfHistory loaded from the data file."""
     return NonConfHistory.load(HISTORY_PATH)

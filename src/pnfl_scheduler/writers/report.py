@@ -3,16 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..app.config import ConferenceRankings
-from ..domain.history import NonConfHistory
-from ..domain.schedule import Schedule
-from ..domain.teams import Team, ordered_teams
-from ..schedulers.two_phase import (
-    _fixed_rank_pairs,
-    _normalize_conference_ranking,
-    _rank_by_id,
-    _solve_four_team_extra_rank_pairs,
-)
+from pnfl_scheduler.domain.history import NonConfHistory
+from pnfl_scheduler.domain.league import League
+from pnfl_scheduler.domain.schedule import Schedule
+from pnfl_scheduler.domain.teams import Team, ordered_teams
+from pnfl_scheduler.schedulers.types import MatchupPlan
 
 
 @dataclass(frozen=True)
@@ -32,19 +27,11 @@ class TeamScheduleReport:
 class ScheduleReport:
     seed: int
     scheduler_kind: str
-    config_path: str | None
-    history_path: str | None
+    config_path: str
+    history_path: str
     elapsed_time_seconds: float
     teams: tuple[TeamScheduleReport, ...]
     command_line: str | None = None
-
-
-def _canonical_pair(team_a: Team, team_b: Team) -> tuple[int, int]:
-    return (min(team_a.id, team_b.id), max(team_a.id, team_b.id))
-
-
-def _schedule_teams(schedule: Schedule) -> list[Team]:
-    return ordered_teams(tuple({team for game in schedule.games for team in (game.home, game.away)}))
 
 
 def _nonconference_opponents(schedule: Schedule, team: Team) -> tuple[Team, ...]:
@@ -53,133 +40,74 @@ def _nonconference_opponents(schedule: Schedule, team: Team) -> tuple[Team, ...]
         for game in schedule.games_for(team)
         if (game.away if game.home == team else game.home).conference != team.conference
     }
-    return tuple(sorted(opponents, key=lambda opponent: opponent.city))
-
-
-def _history_pairs(
-    schedule: Schedule,
-    conference_rankings: ConferenceRankings,
-    teams: tuple[Team, ...],
-) -> set[tuple[int, int]]:
-    ranked_teams_by_conf = _normalize_conference_ranking(conference_rankings, teams)
-    rank_by_id = _rank_by_id(ranked_teams_by_conf)
-    fixed_pairs = _fixed_rank_pairs(ranked_teams_by_conf)
-    extra_pairs = _solve_four_team_extra_rank_pairs(
-        ranked_teams_by_conf=ranked_teams_by_conf,
-        rank_by_id=rank_by_id,
-        forbidden_pairs=fixed_pairs,
-    )
-    scheduled_nonconference = {
-        _canonical_pair(game.home, game.away)
-        for game in schedule.games
-        if game.home.conference != game.away.conference
-    }
-    return scheduled_nonconference - fixed_pairs - extra_pairs
-
-
-def _extra_pairs(
-    conference_rankings: ConferenceRankings,
-    teams: tuple[Team, ...],
-) -> set[tuple[int, int]]:
-    ranked_teams_by_conf = _normalize_conference_ranking(conference_rankings, teams)
-    rank_by_id = _rank_by_id(ranked_teams_by_conf)
-    fixed_pairs = _fixed_rank_pairs(ranked_teams_by_conf)
-    return _solve_four_team_extra_rank_pairs(
-        ranked_teams_by_conf=ranked_teams_by_conf,
-        rank_by_id=rank_by_id,
-        forbidden_pairs=fixed_pairs,
-    )
+    return tuple(sorted(opponents, key=lambda opponent: opponent.metro))
 
 
 def _schedule_rank_by_team(
     schedule: Schedule,
-    conference_rankings: ConferenceRankings,
-    teams: tuple[Team, ...],
-) -> tuple[dict[int, int], dict[int, int], dict[int, int]]:
-    ranked_teams_by_conf = _normalize_conference_ranking(conference_rankings, teams)
-    rank_by_id = _rank_by_id(ranked_teams_by_conf)
+    league: League,
+) -> tuple[dict[Team, int], dict[Team, int], dict[Team, int]]:
+    rank_by_team: dict[Team, int] = {team: league.rankings.rank_of(team) for team in league.teams}
 
-    score_by_team: dict[int, int] = {}
-    for team in teams:
-        score_by_team[team.id] = sum(
-            rank_by_id[(game.away if game.home == team else game.home).id]
-            for game in schedule.games_for(team)
-        )
+    score_by_team: dict[Team, int] = {}
+    for team in league.teams:
+        score_by_team[team] = sum(rank_by_team[(game.away if game.home == team else game.home)] for game in schedule.games_for(team))
 
-    ordered = sorted(teams, key=lambda team: (score_by_team[team.id], team.city))
-    schedule_rank_by_team = {team.id: idx + 1 for idx, team in enumerate(ordered)}
+    ordered = sorted(league.teams, key=lambda t: (score_by_team[t], t.metro))
+    schedule_rank_by_team = {team: idx + 1 for idx, team in enumerate(ordered)}
 
-    nonconference_average_by_team: dict[int, float] = {}
-    for team in teams:
-        nonconference_opponents = _nonconference_opponents(schedule, team)
-        nonconference_average_by_team[team.id] = sum(
-            rank_by_id[opponent.id] for opponent in nonconference_opponents
-        ) / len(nonconference_opponents)
+    nonconference_average_by_team: dict[Team, float] = {}
+    for team in league.teams:
+        opponents = _nonconference_opponents(schedule, team)
+        nonconference_average_by_team[team] = sum(rank_by_team[opp] for opp in opponents) / len(opponents)
 
     nonconference_ordered = sorted(
-        teams,
-        key=lambda team: (nonconference_average_by_team[team.id], team.city),
+        league.teams,
+        key=lambda t: (nonconference_average_by_team[t], t.metro),
     )
-    nonconference_rank_by_team = {team.id: idx + 1 for idx, team in enumerate(nonconference_ordered)}
+    nonconference_rank_by_team = {team: idx + 1 for idx, team in enumerate(nonconference_ordered)}
 
-    return rank_by_id, schedule_rank_by_team, nonconference_rank_by_team
+    return rank_by_team, schedule_rank_by_team, nonconference_rank_by_team
 
 
 def build_schedule_report(
     *,
     schedule: Schedule,
-    conference_rankings: ConferenceRankings,
+    matchup_plan: MatchupPlan,
+    league: League,
     history: NonConfHistory | None,
     seed: int,
     scheduler_kind: str,
-    config_path: Path | None,
-    history_path: Path | None,
+    config_path: Path,
+    history_path: Path,
     elapsed_time_seconds: float,
     command_line: str | None = None,
 ) -> ScheduleReport:
-    teams = tuple(_schedule_teams(schedule))
-    team_by_id = {team.id: team for team in teams}
-    rank_by_id, schedule_rank_by_team, nonconference_rank_by_team = _schedule_rank_by_team(
-        schedule,
-        conference_rankings,
-        teams,
-    )
-    if scheduler_kind == "two-phase":
-        extra_pairs = _extra_pairs(conference_rankings, teams)
-        history_pairs = _history_pairs(schedule, conference_rankings, teams)
-    else:
-        extra_pairs = set()
-        history_pairs = set()
+    teams = ordered_teams(league.teams)
+    rank_by_team, schedule_rank_by_team, nonconference_rank_by_team = _schedule_rank_by_team(schedule, league)
 
-    extra_opponent_by_team: dict[int, Team] = {}
-    for team_a_id, team_b_id in extra_pairs:
-        team_a = team_by_id[team_a_id]
-        team_b = team_by_id[team_b_id]
-        extra_opponent_by_team[team_a.id] = team_b
-        extra_opponent_by_team[team_b.id] = team_a
+    extra_opponent_by_team: dict[Team, Team] = {}
+    for team_a, team_b in matchup_plan.extra_nonconference_pairs:
+        extra_opponent_by_team[team_a] = team_b
+        extra_opponent_by_team[team_b] = team_a
 
-    history_opponent_by_team: dict[int, Team] = {}
-    for team_a_id, team_b_id in history_pairs:
-        team_a = team_by_id[team_a_id]
-        team_b = team_by_id[team_b_id]
-        history_opponent_by_team[team_a.id] = team_b
-        history_opponent_by_team[team_b.id] = team_a
+    history_opponent_by_team: dict[Team, Team] = {}
+    for team_a, team_b in matchup_plan.history_nonconference_pairs:
+        history_opponent_by_team[team_a] = team_b
+        history_opponent_by_team[team_b] = team_a
 
     rows: list[TeamScheduleReport] = []
     for team in teams:
         nonconference_opponents = _nonconference_opponents(schedule, team)
-        nonconference_game_ranks = ",".join(
-            str(rank)
-            for rank in sorted(rank_by_id[opponent.id] for opponent in nonconference_opponents)
-        )
-        extra_opponent = extra_opponent_by_team.get(team.id)
-        history_opponent = history_opponent_by_team.get(team.id)
-        extra_opponent_city = extra_opponent.city if extra_opponent is not None else "-"
+        nonconference_game_ranks = ",".join(str(rank) for rank in sorted(rank_by_team[opp] for opp in nonconference_opponents))
+        extra_opponent = extra_opponent_by_team.get(team)
+        history_opponent = history_opponent_by_team.get(team)
+        extra_opponent_city = extra_opponent.metro if extra_opponent is not None else "-"
         if history_opponent is None:
             history_opponent_city = "-"
             history_last_played = "-"
         else:
-            history_opponent_city = history_opponent.city
+            history_opponent_city = history_opponent.metro
             if history is None:
                 history_last_played = "unknown"
             else:
@@ -188,15 +116,15 @@ def build_schedule_report(
 
         rows.append(
             TeamScheduleReport(
-                team=team.city,
-                conference_rank=rank_by_id[team.id],
-                schedule_rank=schedule_rank_by_team[team.id],
-                nonconference_rank=nonconference_rank_by_team[team.id],
+                team=team.metro,
+                conference_rank=rank_by_team[team],
+                schedule_rank=schedule_rank_by_team[team],
+                nonconference_rank=nonconference_rank_by_team[team],
                 nonconference_game_ranks=nonconference_game_ranks,
                 extra_opponent=extra_opponent_city,
                 history_opponent=history_opponent_city,
                 history_last_played=history_last_played,
-                nonconference_opponents=tuple(opponent.city for opponent in nonconference_opponents),
+                nonconference_opponents=tuple(opponent.metro for opponent in nonconference_opponents),
             )
         )
 
@@ -204,8 +132,8 @@ def build_schedule_report(
         seed=seed,
         scheduler_kind=scheduler_kind,
         command_line=command_line,
-        config_path=str(config_path) if config_path is not None else None,
-        history_path=str(history_path) if history_path is not None else None,
+        config_path=str(config_path),
+        history_path=str(history_path),
         elapsed_time_seconds=elapsed_time_seconds,
         teams=tuple(rows),
     )

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pnfl-scheduler"
 version = "0.1.0"
-description = "Two-phase PNFL schedule generator built on Google OR-Tools."
+description = "PNFL schedule generator built on Google OR-Tools."
 authors = [{ name = "Brian J" }]
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,10 +15,10 @@ dependencies = ["ortools>=9.10"]
 dev = ["pytest", "ruff"]
 
 [project.scripts]
-pnfl-scheduler = "pnfl_scheduler.app.cli:main"
+pnfl-scheduler = "pnfl_scheduler.cli:main"
 
 [project.entry-points."pnfl.commands"]
-generate-schedule = "pnfl_scheduler.app.cli:main"
+generate-schedule = "pnfl_scheduler.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

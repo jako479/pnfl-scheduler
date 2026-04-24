@@ -1,76 +1,67 @@
-from pnfl_scheduler.domain.teams import Division, NUM_WEEKS, TEAMS
+from pnfl_scheduler.domain.teams import Division, NUM_WEEKS
 
 
-def test_each_team_plays_exactly_one_game_per_week(schedule):
+def test_each_team_plays_exactly_one_game_per_week(schedule, teams):
     """Each team plays exactly one game per week."""
-    for team in TEAMS:
+    for team in teams:
         for w in range(1, NUM_WEEKS + 1):
             games = [g for g in schedule.games_for(team) if g.week == w]
-            assert len(games) == 1, f"{team.city} week {w}: {len(games)} games, expected 1"
+            assert len(games) == 1, f"{team.metro} week {w}: {len(games)} games, expected 1"
 
 
-def test_each_team_has_equal_home_and_away_games(schedule):
+def test_each_team_has_equal_home_and_away_games(schedule, teams):
     """Every team plays the same number of home and away games."""
-    for team in TEAMS:
+    for team in teams:
         home = len(schedule.home_games_for(team))
         away = len(schedule.away_games_for(team))
-        assert home == away, f"{team.city}: {home} home vs {away} away"
+        assert home == away, f"{team.metro}: {home} home vs {away} away"
 
 
-def test_each_team_plays_division_opponents_twice_home_and_away(schedule):
+def test_each_team_plays_division_opponents_twice_home_and_away(schedule, teams):
     """Every division pairing happens exactly twice, once home and once away."""
     for division in Division:
-        div_teams = [t for t in TEAMS if t.division == division]
+        div_teams = [t for t in teams if t.division == division]
         for i, team_a in enumerate(div_teams):
             for team_b in div_teams[i + 1 :]:
                 meetings = schedule.games_between(team_a, team_b)
-                assert len(meetings) == 2, (
-                    f"{team_a.city} vs {team_b.city}: {len(meetings)} meetings, expected 2"
-                )
+                assert len(meetings) == 2, f"{team_a.metro} vs {team_b.metro}: {len(meetings)} meetings, expected 2"
                 homes = {g.home for g in meetings}
-                assert homes == {team_a, team_b}, (
-                    f"{team_a.city} vs {team_b.city}: both games had the same host"
-                )
+                assert homes == {team_a, team_b}, f"{team_a.metro} vs {team_b.metro}: both games had the same host"
 
 
-def test_same_conference_cross_division_pairs_meet_exactly_once(schedule):
+def test_same_conference_cross_division_pairs_meet_exactly_once(schedule, teams):
     """Every same-conference cross-division pair meets exactly once."""
-    for i, team_a in enumerate(TEAMS):
-        for team_b in TEAMS[i + 1 :]:
+    for i, team_a in enumerate(teams):
+        for team_b in teams[i + 1 :]:
             if team_a.division == team_b.division:
                 continue
             if team_a.conference != team_b.conference:
                 continue
             meetings = schedule.games_between(team_a, team_b)
-            assert len(meetings) == 1, (
-                f"{team_a.city} vs {team_b.city}: {len(meetings)} meetings, expected 1"
-            )
+            assert len(meetings) == 1, f"{team_a.metro} vs {team_b.metro}: {len(meetings)} meetings, expected 1"
 
 
-def test_non_conference_pairs_meet_at_most_once(schedule):
+def test_non_conference_pairs_meet_at_most_once(schedule, teams):
     """Every non-conference pair meets at most once."""
-    for i, team_a in enumerate(TEAMS):
-        for team_b in TEAMS[i + 1 :]:
+    for i, team_a in enumerate(teams):
+        for team_b in teams[i + 1 :]:
             if team_a.conference == team_b.conference:
                 continue
             meetings = schedule.games_between(team_a, team_b)
-            assert len(meetings) <= 1, (
-                f"{team_a.city} vs {team_b.city}: {len(meetings)} meetings, expected <= 1"
-            )
+            assert len(meetings) <= 1, f"{team_a.metro} vs {team_b.metro}: {len(meetings)} meetings, expected <= 1"
 
 
-def test_no_back_to_back_games_between_same_teams(schedule):
+def test_no_back_to_back_games_between_same_teams(schedule, teams):
     """Two teams cannot play each other in consecutive weeks."""
-    for i, team_a in enumerate(TEAMS):
-        for team_b in TEAMS[i + 1 :]:
+    for i, team_a in enumerate(teams):
+        for team_b in teams[i + 1 :]:
             meetings = schedule.games_between(team_a, team_b)
             if len(meetings) < 2:
                 continue
             weeks_played = sorted(g.week for g in meetings)
             for k in range(len(weeks_played) - 1):
                 assert weeks_played[k + 1] - weeks_played[k] > 1, (
-                    f"{team_a.city} vs {team_b.city}: back-to-back in weeks "
-                    f"{weeks_played[k]} and {weeks_played[k + 1]}"
+                    f"{team_a.metro} vs {team_b.metro}: back-to-back in weeks {weeks_played[k]} and {weeks_played[k + 1]}"
                 )
 
 
@@ -121,67 +112,63 @@ def _count_streaks_of(pattern, length):
     return count
 
 
-def test_no_more_than_three_consecutive_home_games(schedule):
+def test_no_more_than_three_consecutive_home_games(schedule, teams):
     """The maximum home streak is 3."""
-    for team in TEAMS:
+    for team in teams:
         streak = _max_streak(_home_pattern(schedule, team))
-        assert streak <= 3, f"{team.city}: {streak} consecutive home games"
+        assert streak <= 3, f"{team.metro}: {streak} consecutive home games"
 
 
-def test_no_more_than_three_consecutive_away_games(schedule):
+def test_no_more_than_three_consecutive_away_games(schedule, teams):
     """The maximum away streak is 3."""
-    for team in TEAMS:
+    for team in teams:
         away = [not h for h in _home_pattern(schedule, team)]
         streak = _max_streak(away)
-        assert streak <= 3, f"{team.city}: {streak} consecutive away games"
+        assert streak <= 3, f"{team.metro}: {streak} consecutive away games"
 
 
-def test_three_home_streak_at_most_once(schedule):
+def test_three_home_streak_at_most_once(schedule, teams):
     """A 3-game home streak can happen at most once per season."""
-    for team in TEAMS:
+    for team in teams:
         count = _count_streaks_of(_home_pattern(schedule, team), 3)
-        assert count <= 1, f"{team.city}: {count} home streaks of 3+"
+        assert count <= 1, f"{team.metro}: {count} home streaks of 3+"
 
 
-def test_three_away_streak_at_most_once(schedule):
+def test_three_away_streak_at_most_once(schedule, teams):
     """A 3-game away streak can happen at most once per season."""
-    for team in TEAMS:
+    for team in teams:
         away = [not h for h in _home_pattern(schedule, team)]
         count = _count_streaks_of(away, 3)
-        assert count <= 1, f"{team.city}: {count} away streaks of 3+"
+        assert count <= 1, f"{team.metro}: {count} away streaks of 3+"
 
 
-def test_max_five_division_games_in_eight_game_span_four_team_div(schedule):
+def test_max_five_division_games_in_eight_game_span_four_team_div(schedule, teams):
     """Four-team divisions cannot have more than 5 divisional games in any 8-game window."""
-    four_team_teams = [t for t in TEAMS if t.division in (Division.AFC_EAST, Division.NFC_EAST)]
+    four_team_teams = [t for t in teams if t.division in (Division.AFC_EAST, Division.NFC_EAST)]
     for team in four_team_teams:
         pattern = _div_pattern(schedule, team)
         for w in range(NUM_WEEKS - 7):
             count = sum(pattern[w : w + 8])
-            assert count <= 5, (
-                f"{team.city} weeks {w + 1}-{w + 8}: {count} division games in 8-game span"
-            )
+            assert count <= 5, f"{team.metro} weeks {w + 1}-{w + 8}: {count} division games in 8-game span"
 
 
-def test_at_least_half_divisional_games_in_second_half(schedule):
+def test_at_least_half_divisional_games_in_second_half(schedule, teams):
     """At least half of each team's divisional games fall in the last 8 weeks."""
     second_half_start = NUM_WEEKS // 2
-    for team in TEAMS:
+    for team in teams:
         pattern = _div_pattern(schedule, team)
         second_half = sum(pattern[second_half_start:])
         if team.division in (Division.AFC_WEST, Division.NFC_WEST):
             minimum = 4
         else:
             minimum = 3
-        assert second_half >= minimum, (
-            f"{team.city}: {second_half} divisional games in last 8 weeks, expected >= {minimum}"
-        )
+        assert second_half >= minimum, f"{team.metro}: {second_half} divisional games in last 8 weeks, expected >= {minimum}"
 
 
-def test_divisional_opponent_interleaving(schedule):
+def test_divisional_opponent_interleaving(schedule, teams):
     """At most 2 divisional opponents may have no other opponent's game between meetings."""
-    for team in TEAMS:
-        div_opps = [t for t in TEAMS if t.division == team.division and t != team]
+    for team in teams:
+        div_opps = [t for t in teams if t.division == team.division and t != team]
         meeting_weeks = {}
         for opp in div_opps:
             meetings = schedule.games_between(team, opp)
@@ -205,9 +192,7 @@ def test_divisional_opponent_interleaving(schedule):
                 interleaved += 1
 
         non_interleaved = len(div_opps) - interleaved
-        assert non_interleaved <= 2, (
-            f"{team.city}: {non_interleaved} non-interleaved opponents, expected <= 2"
-        )
+        assert non_interleaved <= 2, f"{team.metro}: {non_interleaved} non-interleaved opponents, expected <= 2"
 
 
 def test_last_week_has_eight_intra_division_games(schedule):

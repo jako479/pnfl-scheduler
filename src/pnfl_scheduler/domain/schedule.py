@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .teams import Team
+from pnfl_scheduler.domain.teams import Team
 
 
 @dataclass(frozen=True)

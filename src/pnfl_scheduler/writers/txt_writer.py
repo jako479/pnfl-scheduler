@@ -3,18 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..domain.schedule import Game, Schedule
+from pnfl_scheduler.domain.schedule import Game, Schedule
 
 
 def _week_games(schedule: Schedule) -> dict[int, list[Game]]:
     games_by_week: dict[int, list[Game]] = {}
-    for game in sorted(schedule.games, key=lambda g: (g.week, g.away.city, g.home.city)):
+    for game in sorted(schedule.games, key=lambda g: (g.week, g.away.metro, g.home.metro)):
         games_by_week.setdefault(game.week, []).append(game)
     return games_by_week
 
 
 def _format_week_game(game: Game) -> str:
-    return f"{game.away.city}#{game.home.city}"
+    return f"{game.away.metro}#{game.home.metro}"
 
 
 @dataclass(frozen=True)

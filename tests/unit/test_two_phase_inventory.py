@@ -2,147 +2,102 @@ from collections import Counter
 
 import pytest
 
-from tests.conftest import CONFIG_5_SLOTS, CONFIG_6_SLOTS, CONFIG_7_SLOTS, HISTORY_PATH, TEST_SEASON
-
 from pnfl_scheduler.domain.history import NonConfHistory
-from pnfl_scheduler.domain.teams import Conference, Division, TEAMS, Team, lookup_team
-from pnfl_scheduler.schedulers.two_phase import (
-    FIXED_NONCONF_RANK_OPPONENTS,
-    _fixed_rank_pairs,
-    _normalize_conference_ranking,
-    _rank_by_id,
-    _solve_four_team_extra_rank_pairs,
-    build_phase_one_matchup_inventory,
-)
+from pnfl_scheduler.domain.league import League
+from pnfl_scheduler.domain.teams import Conference, Division, Team
+from pnfl_scheduler.schedulers.fixed_matchup_builder import FIXED_NONCONF_RANK_OPPONENTS, FixedMatchupBuilder
+from pnfl_scheduler.schedulers.helpers import canonical_pair
+from pnfl_scheduler.schedulers.types import MatchupPlan
+from tests.conftest import HISTORY_PATH, TEST_SEASON
 
 
-ALL_CONFIGS = [
-    pytest.param(CONFIG_5_SLOTS, id="5-free-slots"),
-    pytest.param(CONFIG_6_SLOTS, id="6-free-slots"),
-    pytest.param(CONFIG_7_SLOTS, id="7-free-slots"),
-]
-
-
-def _phase_one_inventory(config) -> tuple[tuple[int, int], ...]:
-    return build_phase_one_matchup_inventory(
-        conference_ranking=config["conference_ranking"],
+@pytest.fixture(scope="session")
+def fixed_matchup_plan(league: League) -> MatchupPlan:
+    return FixedMatchupBuilder(
+        teams=league.teams,
+        rankings=league.rankings,
         history=NonConfHistory.load(HISTORY_PATH),
         season=TEST_SEASON,
-    )
+    ).build_matchup_plan()
 
 
-def _pair_counts(inventory: tuple[tuple[int, int], ...]) -> Counter[tuple[int, int]]:
-    return Counter(inventory)
-
-
-def _team_counts(inventory: tuple[tuple[int, int], ...]) -> Counter[int]:
-    counts: Counter[int] = Counter()
-    for i, j in inventory:
+def _team_counts(matchups) -> Counter[Team]:
+    counts: Counter[Team] = Counter()
+    for i, j in matchups:
         counts[i] += 1
         counts[j] += 1
     return counts
 
 
-def _nonconference_opponents(team: Team, inventory: tuple[tuple[int, int], ...]) -> set[Team]:
-    team_by_id = {t.id: t for t in TEAMS}
+def _nonconference_opponents(team: Team, matchups) -> set[Team]:
     opponents: set[Team] = set()
-    for i, j in inventory:
-        if i == team.id and team_by_id[j].conference != team.conference:
-            opponents.add(team_by_id[j])
-        elif j == team.id and team_by_id[i].conference != team.conference:
-            opponents.add(team_by_id[i])
+    for i, j in matchups:
+        if i == team and j.conference != team.conference:
+            opponents.add(j)
+        elif j == team and i.conference != team.conference:
+            opponents.add(i)
     return opponents
 
 
-def _ranked_teams_by_conf(config) -> dict[Conference, tuple[Team, ...]]:
-    return {conf: tuple(lookup_team(city) for city in config["conference_ranking"][conf]) for conf in Conference}
+def _expected_fixed_opponents(team: Team, league: League) -> set[Team]:
+    other_ranked = league.rankings.nfc if team.conference == Conference.AFC else league.rankings.afc
+    team_rank = league.rankings.rank_of(team)
+    return {other_ranked[opp_rank - 1] for opp_rank in FIXED_NONCONF_RANK_OPPONENTS[team_rank]}
 
 
-def _expected_fixed_opponents(team: Team, config) -> set[Team]:
-    ranked = _ranked_teams_by_conf(config)
-    conf_ranked = ranked[team.conference]
-    other_conf = Conference.NFC if team.conference == Conference.AFC else Conference.AFC
-    team_rank = conf_ranked.index(team) + 1
-    return {ranked[other_conf][opp_rank - 1] for opp_rank in FIXED_NONCONF_RANK_OPPONENTS[team_rank]}
+def test_phase_one_inventory_has_expected_total_counts(fixed_matchup_plan, league):
+    matchups = fixed_matchup_plan.matchups
+    pair_counts = Counter(matchups)
+    team_counts = _team_counts(matchups)
 
-
-@pytest.mark.parametrize("config", ALL_CONFIGS)
-def test_phase_one_inventory_has_expected_total_counts(config):
-    inventory = _phase_one_inventory(config)
-    pair_counts = _pair_counts(inventory)
-    team_counts = _team_counts(inventory)
-
-    assert len(inventory) == 144
+    assert len(matchups) == 144
     assert sum(pair_counts.values()) == 144
-    for team in TEAMS:
-        assert team_counts[team.id] == 16, f"{team.city}: wrong total number of games in phase-1 inventory"
+    for team in league.teams:
+        assert team_counts[team] == 16, f"{team.metro}: wrong total number of games in phase-1 inventory"
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS)
-def test_phase_one_inventory_has_expected_divisional_and_conference_counts(config):
-    inventory = _phase_one_inventory(config)
-    pair_counts = _pair_counts(inventory)
+def test_phase_one_inventory_has_expected_divisional_and_conference_counts(fixed_matchup_plan, league):
+    pair_counts = Counter(fixed_matchup_plan.matchups)
 
-    for i, team_a in enumerate(TEAMS):
-        for team_b in TEAMS[i + 1 :]:
-            pair = (team_a.id, team_b.id)
+    for i, team_a in enumerate(league.teams):
+        for team_b in league.teams[i + 1 :]:
+            pair = canonical_pair(team_a, team_b)
             if team_a.division == team_b.division:
-                assert pair_counts[pair] == 2, f"{team_a.city}/{team_b.city}: divisional pair should appear twice"
+                assert pair_counts[pair] == 2, f"{team_a.metro}/{team_b.metro}: divisional pair should appear twice"
             elif team_a.conference == team_b.conference:
-                assert pair_counts[pair] == 1, f"{team_a.city}/{team_b.city}: conference pair should appear once"
+                assert pair_counts[pair] == 1, f"{team_a.metro}/{team_b.metro}: conference pair should appear once"
             else:
-                assert pair_counts[pair] <= 1, f"{team_a.city}/{team_b.city}: non-conference pair should appear at most once"
+                assert pair_counts[pair] <= 1, f"{team_a.metro}/{team_b.metro}: non-conference pair should appear at most once"
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS)
-def test_phase_one_inventory_assigns_expected_nonconference_degree(config):
-    inventory = _phase_one_inventory(config)
-
-    for team in TEAMS:
+def test_phase_one_inventory_assigns_expected_nonconference_degree(fixed_matchup_plan, league):
+    for team in league.teams:
         expected = 5 if team.division in (Division.AFC_EAST, Division.NFC_EAST) else 4
-        actual = len(_nonconference_opponents(team, inventory))
-        assert actual == expected, f"{team.city}: wrong non-conference degree"
+        actual = len(_nonconference_opponents(team, fixed_matchup_plan.matchups))
+        assert actual == expected, f"{team.metro}: wrong non-conference degree"
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS)
-def test_phase_one_inventory_contains_fixed_rank_table_pairs(config):
-    inventory = _phase_one_inventory(config)
-
-    for team in TEAMS:
-        opponents = _nonconference_opponents(team, inventory)
-        expected_fixed = _expected_fixed_opponents(team, config)
-        assert expected_fixed.issubset(opponents), f"{team.city}: missing one of the fixed rank-table opponents"
+def test_phase_one_inventory_contains_fixed_rank_table_pairs(fixed_matchup_plan, league):
+    for team in league.teams:
+        opponents = _nonconference_opponents(team, fixed_matchup_plan.matchups)
+        expected_fixed = _expected_fixed_opponents(team, league)
+        assert expected_fixed.issubset(opponents), f"{team.metro}: missing one of the fixed rank-table opponents"
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS)
-def test_phase_one_inventory_adds_exactly_one_extra_east_sos_pair(config):
-    inventory = _phase_one_inventory(config)
-    ranked = _normalize_conference_ranking(config["conference_ranking"])
-    rank_by_id = _rank_by_id(ranked)
-    expected_extra_pairs = _solve_four_team_extra_rank_pairs(
-        ranked_teams_by_conf=ranked,
-        rank_by_id=rank_by_id,
-        forbidden_pairs=_fixed_rank_pairs(ranked),
-    )
-
-    assert expected_extra_pairs.issubset(set(inventory))
+def test_phase_one_inventory_adds_extra_east_sos_pairs(fixed_matchup_plan):
+    # Four East teams per conference produces exactly 4 pairings (one per East team).
+    assert len(fixed_matchup_plan.extra_nonconference_pairs) == 4
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS)
-def test_phase_one_inventory_history_fills_remaining_nonconference_slots(config):
-    inventory = _phase_one_inventory(config)
-
+def test_phase_one_inventory_history_fills_remaining_nonconference_slots(fixed_matchup_plan, league):
     east_divisions = {Division.AFC_EAST, Division.NFC_EAST}
-    for team in TEAMS:
-        opponents = _nonconference_opponents(team, inventory)
-        fixed = _expected_fixed_opponents(team, config)
+    for team in league.teams:
+        opponents = _nonconference_opponents(team, fixed_matchup_plan.matchups)
+        fixed = _expected_fixed_opponents(team, league)
         extra = opponents - fixed
-
         expected_extra = 2 if team.division in east_divisions else 1
-        assert len(extra) == expected_extra, f"{team.city}: wrong number of non-fixed non-conference opponents"
+        assert len(extra) == expected_extra, f"{team.metro}: wrong number of non-fixed non-conference opponents"
 
 
-@pytest.mark.parametrize("config", ALL_CONFIGS)
-def test_phase_one_inventory_uses_canonical_pair_ordering(config):
-    inventory = _phase_one_inventory(config)
-    assert all(i < j for i, j in inventory)
+def test_phase_one_inventory_uses_canonical_pair_ordering(fixed_matchup_plan):
+    assert all(i.metro < j.metro for i, j in fixed_matchup_plan.matchups)

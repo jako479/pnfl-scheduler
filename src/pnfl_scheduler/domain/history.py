@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
-from .teams import Conference, Team
+from pnfl_scheduler.domain.teams import Conference, Team
 
 FORMAT_VERSION = 1
 
@@ -18,7 +18,7 @@ def _canonical_key(team_a: Team, team_b: Team) -> str:
     """Return 'AFCcity|NFCcity' key for a non-conference pair."""
     afc = team_a if team_a.conference == Conference.AFC else team_b
     nfc = team_b if team_a.conference == Conference.AFC else team_a
-    return f"{afc.city}|{nfc.city}"
+    return f"{afc.metro}|{nfc.metro}"
 
 
 class NonConfHistory:
@@ -33,7 +33,7 @@ class NonConfHistory:
         path = Path(path)
         if not path.exists():
             return cls()
-        data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        data: _HistoryJson = json.loads(path.read_text(encoding="utf-8"))
         return cls(matchups=data["matchups"])
 
     def save(self, path: Path | str) -> None:
@@ -88,3 +88,8 @@ class NonConfHistory:
             return self._never_played_cost(season)
 
         return self._played_opponent_cost(s, season)
+
+
+class _HistoryJson(TypedDict):
+    format_version: int
+    matchups: dict[str, int | None]

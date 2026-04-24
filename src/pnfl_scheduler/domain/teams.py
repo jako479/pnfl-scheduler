@@ -47,8 +47,7 @@ FIVE_TEAM_DIVISIONS = frozenset({Division.AFC_WEST, Division.NFC_WEST})
 
 @dataclass(frozen=True)
 class Team:
-    id: int
-    city: str
+    metro: str
     division: Division
 
     @property
@@ -61,11 +60,11 @@ GAMES_PER_WEEK = 9
 
 
 def _normalize_divisions(
-    divisions: Mapping[Division | str, Sequence[str]],
+    divisions: Mapping[str, Sequence[str]],
 ) -> dict[Division, tuple[str, ...]]:
     normalized: dict[Division, tuple[str, ...]] = {}
     for key, cities in divisions.items():
-        division = key if isinstance(key, Division) else DIVISION_BY_SECTION_NAME.get(key)
+        division = DIVISION_BY_SECTION_NAME.get(key)
         if division is None:
             valid = ", ".join(sorted(DIVISION_BY_SECTION_NAME))
             raise ValueError(f"Unknown division key {key!r}; expected one of {valid}")
@@ -79,7 +78,7 @@ def _normalize_divisions(
     return normalized
 
 
-def build_teams(divisions: Mapping[Division | str, Sequence[str]]) -> tuple[Team, ...]:
+def build_teams(divisions: Mapping[str, Sequence[str]]) -> tuple[Team, ...]:
     normalized = _normalize_divisions(divisions)
     teams: list[Team] = []
     seen_cities: set[str] = set()
@@ -88,13 +87,11 @@ def build_teams(divisions: Mapping[Division | str, Sequence[str]]) -> tuple[Team
         cities = normalized[division]
         expected_size = EXPECTED_DIVISION_SIZES[division]
         if len(cities) != expected_size:
-            raise ValueError(
-                f"{division.section_name} must list exactly {expected_size} teams; got {len(cities)}"
-            )
+            raise ValueError(f"{division.section_name} must list exactly {expected_size} teams; got {len(cities)}")
         for city in cities:
             if city in seen_cities:
                 raise ValueError(f"Duplicate team in divisions config: {city}")
-            teams.append(Team(id=len(teams), city=city, division=division))
+            teams.append(Team(metro=city, division=division))
             seen_cities.add(city)
 
     if len(teams) != 18:
@@ -102,20 +99,16 @@ def build_teams(divisions: Mapping[Division | str, Sequence[str]]) -> tuple[Team
     return tuple(teams)
 
 
-def team_by_city(teams: Sequence[Team]) -> dict[str, Team]:
-    return {team.city: team for team in teams}
+def team_by_metro(teams: Sequence[Team]) -> dict[str, Team]:
+    return {team.metro: team for team in teams}
 
 
-def team_by_id(teams: Sequence[Team]) -> dict[int, Team]:
-    return {team.id: team for team in teams}
-
-
-def lookup_team(teams: Sequence[Team], city: str) -> Team:
-    by_city = team_by_city(teams)
-    if city not in by_city:
-        raise ValueError(f"Unknown team: {city!r}. Valid: {sorted(by_city)}")
-    return by_city[city]
+def lookup_team(teams: Sequence[Team], metro: str) -> Team:
+    by_metro = team_by_metro(teams)
+    if metro not in by_metro:
+        raise ValueError(f"Unknown team: {metro!r}. Valid: {sorted(by_metro)}")
+    return by_metro[metro]
 
 
 def ordered_teams(teams: Sequence[Team]) -> list[Team]:
-    return sorted(teams, key=lambda team: (DIVISION_INDEX[team.division], team.city))
+    return sorted(teams, key=lambda team: (DIVISION_INDEX[team.division], team.metro))

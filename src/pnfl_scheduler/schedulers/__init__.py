@@ -1,19 +1,17 @@
-from __future__ import annotations
-
 from collections.abc import Callable
 
-from ..domain.schedule import Schedule
-from .two_phase import solve_schedule as solve_schedule_two_phase
-from .two_phase_rank import solve_schedule as solve_schedule_two_phase_rank
+from pnfl_scheduler.schedulers.fixed_matchup_scheduler import generate_schedule as fixed_matchup_scheduler
+from pnfl_scheduler.schedulers.scheduler import generate_schedule as rank_scheduler
+from pnfl_scheduler.schedulers.types import SchedulerResult
 
-SchedulerFunc = Callable[..., Schedule]
+SchedulerFunc = Callable[..., SchedulerResult]
 
-DEFAULT_SCHEDULER = "two-phase"
+DEFAULT_SCHEDULER = "fixed-matchup"
 RANK_ONLY_SCHEDULER = "two-phase-rank"
 
 SCHEDULERS: dict[str, SchedulerFunc] = {
-    DEFAULT_SCHEDULER: solve_schedule_two_phase,
-    RANK_ONLY_SCHEDULER: solve_schedule_two_phase_rank,
+    DEFAULT_SCHEDULER: fixed_matchup_scheduler,
+    RANK_ONLY_SCHEDULER: rank_scheduler,
 }
 
 

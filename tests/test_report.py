@@ -1,6 +1,7 @@
-from tests.conftest import CONFIG_5_SLOTS, CONFIG_6_SLOTS, CONFIG_7_SLOTS
+from pathlib import Path
 
 from pnfl_scheduler.writers.report import TeamScheduleReport, build_schedule_report
+from tests.conftest import LEAGUE_5_SLOTS, LEAGUE_6_SLOTS, LEAGUE_7_SLOTS
 
 EXPECTED_ROWS = {
     "5-free-slots": {
@@ -72,33 +73,31 @@ EXPECTED_ROWS = {
 }
 
 
-def _config_id(standings_data) -> str:
-    if standings_data == CONFIG_5_SLOTS:
+def _league_id(league) -> str:
+    if league is LEAGUE_5_SLOTS:
         return "5-free-slots"
-    if standings_data == CONFIG_6_SLOTS:
+    if league is LEAGUE_6_SLOTS:
         return "6-free-slots"
-    if standings_data == CONFIG_7_SLOTS:
+    if league is LEAGUE_7_SLOTS:
         return "7-free-slots"
-    raise AssertionError(f"Unexpected standings config: {standings_data}")
+    raise AssertionError(f"Unexpected league fixture: {league}")
 
 
-def test_schedule_report_rows_for_one_four_team_and_one_five_team_division(
-    schedule, standings_data, history
-):
-    conference_ranking = standings_data["conference_ranking"]
+def test_schedule_report_rows_for_one_four_team_and_one_five_team_division(schedule, matchup_plan, league, history):
     report = build_schedule_report(
         schedule=schedule,
-        conference_ranking=conference_ranking,
+        matchup_plan=matchup_plan,
+        league=league,
         history=history,
         seed=0,
-        scheduler_kind="two-phase",
-        config_path=None,
-        history_path=None,
+        scheduler_kind="fixed-matchup",
+        config_path=Path("test-config.ini"),
+        history_path=Path("test-history.json"),
         elapsed_time_seconds=0.0,
     )
 
     rows_by_team = {row.team: row for row in report.teams}
-    expected_rows = EXPECTED_ROWS[_config_id(standings_data)]
+    expected_rows = EXPECTED_ROWS[_league_id(league)]
 
     assert rows_by_team["Buffalo"] == expected_rows["Buffalo"]
     assert rows_by_team["Denver"] == expected_rows["Denver"]

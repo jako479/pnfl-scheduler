@@ -4,38 +4,13 @@ import argparse
 import random
 import subprocess
 import sys
-import time
 from collections.abc import Sequence
 from pathlib import Path
 
-from .config import find_config_path, load_config
-from .run import DEFAULT_HISTORY_PATH, generate_schedule
-from ..domain.history import NonConfHistory
-from ..writers.html_writer import HtmlScheduleWriter
-from ..writers.report import TxtReportWriter, build_schedule_report
-from ..writers.txt_schedule_writer import TxtScheduleWriter
-from ..schedulers import DEFAULT_SCHEDULER, available_schedulers
-
-
-def _resolve_writer(parser: argparse.ArgumentParser, output: Path, output_format: str | None):
-    fmt = output_format.lower() if output_format is not None else output.suffix.lower().lstrip(".")
-    if fmt == "":
-        parser.error("Could not infer output format from file extension; use --format.")
-    if fmt in {"html", "htm"}:
-        return HtmlScheduleWriter(output)
-    if fmt == "txt":
-        return TxtScheduleWriter(output)
-    parser.error(f"Unsupported output format: {fmt}")
-
-
-def _default_report_path(output: Path) -> Path:
-    return output.with_name(f"{output.stem}-report.txt")
-
-
-def _command_line(argv: Sequence[str] | None, prog: str) -> str:
-    if argv is None:
-        return subprocess.list2cmdline([prog, *sys.argv[1:]])
-    return subprocess.list2cmdline([prog, *argv])
+from pnfl_scheduler.config import find_config_path
+from pnfl_scheduler.main import DEFAULT_HISTORY_PATH, generate_schedule
+from pnfl_scheduler.schedulers import DEFAULT_SCHEDULER, available_schedulers
+from pnfl_scheduler.writers import available_writer_formats
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=("html", "txt"),
+        choices=available_writer_formats(),
         default=None,
         help="Optional output format override. Defaults to inferring from --output.",
     )
@@ -101,39 +76,45 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _default_report_path(output: Path) -> Path:
+    return output.with_name(f"{output.stem}-report.txt")
+
+
+def _command_line(argv: Sequence[str] | None, prog: str) -> str:
+    if argv is None:
+        return subprocess.list2cmdline([prog, *sys.argv[1:]])
+    return subprocess.list2cmdline([prog, *argv])
+
+
+def _infer_format(parser: argparse.ArgumentParser, output: Path, output_format: str | None) -> str:
+    fmt = (output_format or output.suffix.lstrip(".")).lower()
+    if not fmt:
+        parser.error("Could not infer output format from file extension; use --format.")
+    if fmt not in available_writer_formats():
+        parser.error(f"Unsupported output format: {fmt}")
+    return fmt
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    command_line = _command_line(argv, parser.prog)
-    writer = _resolve_writer(parser, args.output, args.format)
-    report_path = args.report or _default_report_path(args.output)
+
+    fmt = _infer_format(parser, args.output, args.format)
     config_path = args.config or find_config_path()
     history_path = args.history or DEFAULT_HISTORY_PATH
-    config = load_config(config_path)
-    history = NonConfHistory.load(history_path)
+    report_path = args.report or _default_report_path(args.output)
     seed = args.seed if args.seed is not None else random.randint(0, 1_000_000)
-    started_at = time.perf_counter()
-    schedule = generate_schedule(
-        scheduler=args.scheduler,
-        seed=seed,
-        time_limit=args.time_limit,
-        config=config,
-        history=history,
+
+    generate_schedule(
+        output=args.output,
+        output_format=fmt,
         season=args.season,
-        writer=writer,
-    )
-    elapsed_time_seconds = time.perf_counter() - started_at
-    report = build_schedule_report(
-        schedule=schedule,
-        conference_rankings=config.ConferenceRankings,
-        history=history,
-        seed=seed,
-        scheduler_kind=args.scheduler,
-        command_line=command_line,
+        scheduler=args.scheduler,
         config_path=config_path,
         history_path=history_path,
-        elapsed_time_seconds=elapsed_time_seconds,
+        report_path=report_path,
+        seed=seed,
+        time_limit=args.time_limit,
+        command_line=_command_line(argv, parser.prog),
     )
-    TxtReportWriter(report_path).write(report)
-    print(f"Generated {len(schedule.games)} games -> {args.output}; report -> {report_path} (seed {seed})")
     return 0

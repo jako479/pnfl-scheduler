@@ -5,9 +5,8 @@ from html import escape
 from pathlib import Path
 from typing import TypeVar
 
-from ..domain.schedule import Game, Schedule
-from ..domain.teams import Team, ordered_teams
-
+from pnfl_scheduler.domain.schedule import Game, Schedule
+from pnfl_scheduler.domain.teams import Team, ordered_teams
 
 T = TypeVar("T")
 
@@ -18,17 +17,14 @@ def _chunked(items: list[T], size: int) -> list[list[T]]:
 
 def _week_games(schedule: Schedule) -> dict[int, list[Game]]:
     games_by_week: dict[int, list[Game]] = {}
-    for game in sorted(schedule.games, key=lambda g: (g.week, g.away.city, g.home.city)):
+    for game in sorted(schedule.games, key=lambda g: (g.week, g.away.metro, g.home.metro)):
         games_by_week.setdefault(game.week, []).append(game)
     return games_by_week
 
 
-def _team_games(schedule: Schedule) -> dict[int, list[Game]]:
+def _team_games(schedule: Schedule) -> dict[Team, list[Game]]:
     teams = _schedule_teams(schedule)
-    return {
-        team.id: sorted(schedule.games_for(team), key=lambda g: g.week)
-        for team in teams
-    }
+    return {team: sorted(schedule.games_for(team), key=lambda g: g.week) for team in teams}
 
 
 def _schedule_teams(schedule: Schedule) -> list[Team]:
@@ -37,23 +33,20 @@ def _schedule_teams(schedule: Schedule) -> list[Team]:
 
 
 def _format_week_game(game: Game) -> str:
-    return f"{game.away.city} at {game.home.city}"
+    return f"{game.away.metro} at {game.home.metro}"
 
 
 def _format_team_game(team: Team, game: Game) -> str:
     opponent = game.away if game.home == team else game.home
     prefix = "vs" if game.home == team else "at"
-    return f"Week {game.week}: {prefix} {opponent.city}"
+    return f"Week {game.week}: {prefix} {opponent.metro}"
 
 
 def _render_nav_links(labels: list[tuple[str, str]], columns: int, width: int) -> list[str]:
     rows: list[str] = []
     for chunk in _chunked(labels, columns):
         rows.append(
-            "".join(
-                f'<A HREF="#{target}">{escape(label)}</A>' + (" " * max(width - len(label), 0))
-                for target, label in chunk
-            ).rstrip()
+            "".join(f'<A HREF="#{target}">{escape(label)}</A>' + (" " * max(width - len(label), 0)) for target, label in chunk).rstrip()
         )
     return rows
 
@@ -121,11 +114,7 @@ class HtmlScheduleWriter:
             right_week = week_pair[1] if len(week_pair) > 1 else None
 
             left_header = _named_header(f"W{left_week}", f"Week {left_week}", col_width)
-            right_header = (
-                _named_header(f"W{right_week}", f"Week {right_week}", col_width)
-                if right_week is not None
-                else ""
-            )
+            right_header = _named_header(f"W{right_week}", f"Week {right_week}", col_width) if right_week is not None else ""
             lines.append(left_header + right_header)
 
             left_games = [_format_week_game(game) for game in games_by_week[left_week]]
@@ -137,7 +126,7 @@ class HtmlScheduleWriter:
                 lines.append(left.ljust(col_width) + right)
             lines.extend(
                 [
-                    "<em><A HREF=\"#W0\">Back to top</A></em>",
+                    '<em><A HREF="#W0">Back to top</A></em>',
                     "",
                 ]
             )
@@ -162,7 +151,7 @@ class HtmlScheduleWriter:
                 "",
                 "<h2>Team by Team</h2>",
                 "<h3><a href='#W0'>Go to Week by Week schedule</a></h3>",
-                *_render_nav_links([(f"T{idx}", team.city) for idx, team in enumerate(teams, start=1)], columns=2, width=34),
+                *_render_nav_links([(f"T{idx}", team.metro) for idx, team in enumerate(teams, start=1)], columns=2, width=34),
                 "",
             ]
         )
@@ -173,20 +162,12 @@ class HtmlScheduleWriter:
             right_team = team_pair[1] if len(team_pair) > 1 else None
             right_anchor = left_anchor + 1 if right_team is not None else None
 
-            left_header = _named_header(f"T{left_anchor}", left_team.city, col_width)
-            right_header = (
-                _named_header(f"T{right_anchor}", right_team.city, col_width)
-                if right_team is not None
-                else ""
-            )
+            left_header = _named_header(f"T{left_anchor}", left_team.metro, col_width)
+            right_header = _named_header(f"T{right_anchor}", right_team.metro, col_width) if right_team is not None else ""
             lines.append(left_header + right_header)
 
-            left_games = [_format_team_game(left_team, game) for game in games_by_team[left_team.id]]
-            right_games = (
-                [_format_team_game(right_team, game) for game in games_by_team[right_team.id]]
-                if right_team is not None
-                else []
-            )
+            left_games = [_format_team_game(left_team, game) for game in games_by_team[left_team]]
+            right_games = [_format_team_game(right_team, game) for game in games_by_team[right_team]] if right_team is not None else []
             row_count = max(len(left_games), len(right_games))
             for idx in range(row_count):
                 left = left_games[idx] if idx < len(left_games) else ""
@@ -194,7 +175,7 @@ class HtmlScheduleWriter:
                 lines.append(left.ljust(col_width) + right)
             lines.extend(
                 [
-                    "<em><A HREF=\"#T0\">Back to top</A></em>",
+                    '<em><A HREF="#T0">Back to top</A></em>',
                     "",
                 ]
             )
