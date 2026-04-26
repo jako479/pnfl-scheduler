@@ -1,11 +1,16 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from pnfl_scheduler.domain.league import Team
 from pnfl_scheduler.domain.schedule import Schedule
-from pnfl_scheduler.domain.teams import Team
 
 Matchup = tuple[Team, Team]
 Matchups = Sequence[Matchup]
+
+
+def make_matchup(team_a: Team, team_b: Team) -> Matchup:
+    a, b = sorted((team_a, team_b), key=lambda t: t.metro)
+    return (a, b)
 
 
 @dataclass(frozen=True)

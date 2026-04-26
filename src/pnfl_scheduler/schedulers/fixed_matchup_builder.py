@@ -46,11 +46,10 @@ from collections.abc import Sequence
 from ortools.graph.python import linear_sum_assignment
 
 from pnfl_scheduler.domain.history import NonConfHistory
-from pnfl_scheduler.domain.league import ConferenceRankings
-from pnfl_scheduler.domain.teams import Conference, Division, Team
+from pnfl_scheduler.domain.league import Conference, ConferenceRankings, Division, Team
+from pnfl_scheduler.domain.schedule import nonconference_games_for
 from pnfl_scheduler.schedulers.errors import SchedulerError
-from pnfl_scheduler.schedulers.helpers import canonical_pair, required_nonconference_games
-from pnfl_scheduler.schedulers.types import Matchup, MatchupPlan
+from pnfl_scheduler.schedulers.types import Matchup, MatchupPlan, make_matchup
 
 # 1/1 keeps H2H and inverse-rank costs at equal weight.
 H2H_COST_SCALE = 1
@@ -113,7 +112,7 @@ class FixedMatchupBuilder:
         self.rank_by_team = self._rank_by_team()
         self.matchups: list[Matchup] = []
         self.selected_nonconference: set[Matchup] = set()
-        self.remaining_nonconference = {team: required_nonconference_games(team) for team in self.teams}
+        self.remaining_nonconference = {team: nonconference_games_for(team.division) for team in self.teams}
 
         self.fixed_nonconference_pairs: set[Matchup] = set()
         self.extra_nonconference_pairs: set[Matchup] = set()
@@ -135,7 +134,7 @@ class FixedMatchupBuilder:
         for i, team_i in enumerate(self.teams):
             for team_j in self.teams[i + 1 :]:
                 if team_i.division == team_j.division:
-                    pair = canonical_pair(team_i, team_j)
+                    pair = make_matchup(team_i, team_j)
                     self.matchups.append(pair)
                     self.matchups.append(pair)
 
@@ -143,7 +142,7 @@ class FixedMatchupBuilder:
         for i, team_i in enumerate(self.teams):
             for team_j in self.teams[i + 1 :]:
                 if team_i.conference == team_j.conference and team_i.division != team_j.division:
-                    self.matchups.append(canonical_pair(team_i, team_j))
+                    self.matchups.append(make_matchup(team_i, team_j))
 
     def _add_fixed_rank_nonconference_matchups(self) -> None:
         pairs = self._fixed_rank_pairs()
@@ -182,7 +181,7 @@ class FixedMatchupBuilder:
         fixed_pairs: set[Matchup] = set()
         for rank, afc_team in enumerate(afc_ranked, start=1):
             for opp_rank in FIXED_NONCONF_RANK_OPPONENTS[rank]:
-                fixed_pairs.add(canonical_pair(afc_team, nfc_ranked[opp_rank - 1]))
+                fixed_pairs.add(make_matchup(afc_team, nfc_ranked[opp_rank - 1]))
         return fixed_pairs
 
     def _history_pair_cost(
@@ -252,7 +251,7 @@ class FixedMatchupBuilder:
 
         for left in left_teams:
             for right in right_teams:
-                pair = canonical_pair(left, right)
+                pair = make_matchup(left, right)
                 if pair in forbidden_pairs:
                     continue
                 assignment.add_arc_with_cost(left_index[left], right_index[right], cost_fn(left, right))
@@ -266,7 +265,7 @@ class FixedMatchupBuilder:
             right_idx = assignment.right_mate(left_idx)
             if right_idx < 0:
                 raise SchedulerError(f"Assignment left {left_team.metro} unmatched")
-            selected.add(canonical_pair(left_team, right_by_index[right_idx]))
+            selected.add(make_matchup(left_team, right_by_index[right_idx]))
         return selected
 
     def _solve_four_team_extra_rank_pairs(

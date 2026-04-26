@@ -1,13 +1,14 @@
 from collections import Counter
 
-from pnfl_scheduler.domain.teams import Division, NUM_WEEKS
-from pnfl_scheduler.schedulers.helpers import canonical_pair
+from pnfl_scheduler.domain.league import Division
+from pnfl_scheduler.domain.schedule import NUM_WEEKS, WEEK_16_DIVISIONAL_GAMES
+from pnfl_scheduler.schedulers.types import make_matchup
 
 
 def _schedule_pair_counts(schedule) -> Counter:
     counts: Counter = Counter()
     for game in schedule.games:
-        counts[canonical_pair(game.home, game.away)] += 1
+        counts[make_matchup(game.home, game.away)] += 1
     return counts
 
 
@@ -62,7 +63,7 @@ def test_each_team_hosts_exactly_eight_games(schedule, teams):
 def test_no_pair_of_teams_plays_in_back_to_back_weeks(schedule):
     pair_weeks: dict = {}
     for game in schedule.games:
-        pair = canonical_pair(game.home, game.away)
+        pair = make_matchup(game.home, game.away)
         pair_weeks.setdefault(pair, []).append(game.week)
 
     for pair, weeks in pair_weeks.items():
@@ -91,7 +92,7 @@ def test_same_conference_cross_division_pairs_appear_once(schedule, teams):
     for i, team_a in enumerate(teams):
         for team_b in teams[i + 1 :]:
             if team_a.conference == team_b.conference and team_a.division != team_b.division:
-                assert pair_counts[canonical_pair(team_a, team_b)] == 1, (
+                assert pair_counts[make_matchup(team_a, team_b)] == 1, (
                     f"{team_a.metro}/{team_b.metro}: expected exactly 1 same-conference cross-division game"
                 )
 
@@ -316,4 +317,6 @@ def test_no_four_consecutive_home_or_away_games(schedule, teams):
 
 def test_week_16_has_exactly_eight_divisional_games(schedule):
     final_week_divisional_games = sum(1 for game in schedule.games if game.week == NUM_WEEKS and game.home.division == game.away.division)
-    assert final_week_divisional_games == 8, f"week {NUM_WEEKS}: expected exactly 8 divisional games, got {final_week_divisional_games}"
+    assert final_week_divisional_games == WEEK_16_DIVISIONAL_GAMES, (
+        f"week {NUM_WEEKS}: expected exactly {WEEK_16_DIVISIONAL_GAMES} divisional games, got {final_week_divisional_games}"
+    )

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pnfl_scheduler.writers.report import TeamScheduleReport, build_schedule_report
+from pnfl_scheduler.writers.report import TeamScheduleReport, TxtReportWriter, build_schedule_report
 from tests.conftest import LEAGUE_5_SLOTS, LEAGUE_6_SLOTS, LEAGUE_7_SLOTS
 
 EXPECTED_ROWS = {
@@ -8,22 +8,24 @@ EXPECTED_ROWS = {
         "Buffalo": TeamScheduleReport(
             team="Buffalo",
             conference_rank=6,
-            schedule_rank=3,
+            schedule_rank=2,
             nonconference_rank=10,
             extra_opponent="Philadelphia",
             history_opponent="Washington",
             history_last_played="2047",
             nonconference_opponents=("Green Bay", "New York", "Philadelphia", "San Francisco", "Washington"),
+            nonconference_game_ranks="1,4,6,7,8",
         ),
         "Denver": TeamScheduleReport(
             team="Denver",
             conference_rank=4,
             schedule_rank=18,
             nonconference_rank=12,
-            extra_opponent="",
+            extra_opponent="-",
             history_opponent="Seattle",
             history_last_played="2045",
             nonconference_opponents=("Chicago", "New York", "San Francisco", "Seattle"),
+            nonconference_game_ranks="2,4,6,9",
         ),
     },
     "6-free-slots": {
@@ -31,21 +33,23 @@ EXPECTED_ROWS = {
             team="Buffalo",
             conference_rank=5,
             schedule_rank=1,
-            nonconference_rank=4,
+            nonconference_rank=5,
             extra_opponent="Washington",
             history_opponent="Minnesota",
             history_last_played="2047",
             nonconference_opponents=("Atlanta", "Minnesota", "New York", "San Francisco", "Washington"),
+            nonconference_game_ranks="1,3,4,5,7",
         ),
         "Denver": TeamScheduleReport(
             team="Denver",
             conference_rank=7,
             schedule_rank=11,
-            nonconference_rank=13,
-            extra_opponent="",
+            nonconference_rank=14,
+            extra_opponent="-",
             history_opponent="Chicago",
             history_last_played="2047",
             nonconference_opponents=("Chicago", "New York", "San Francisco", "Seattle"),
+            nonconference_game_ranks="2,5,7,9",
         ),
     },
     "7-free-slots": {
@@ -58,16 +62,18 @@ EXPECTED_ROWS = {
             history_opponent="Seattle",
             history_last_played="2047",
             nonconference_opponents=("Atlanta", "Chicago", "Minnesota", "New York", "Seattle"),
+            nonconference_game_ranks="2,3,4,6,9",
         ),
         "Denver": TeamScheduleReport(
             team="Denver",
             conference_rank=7,
             schedule_rank=12,
             nonconference_rank=13,
-            extra_opponent="",
+            extra_opponent="-",
             history_opponent="Chicago",
             history_last_played="2047",
             nonconference_opponents=("Chicago", "Philadelphia", "San Francisco", "Seattle"),
+            nonconference_game_ranks="2,5,7,9",
         ),
     },
 }
@@ -83,7 +89,7 @@ def _league_id(league) -> str:
     raise AssertionError(f"Unexpected league fixture: {league}")
 
 
-def test_schedule_report_rows_for_one_four_team_and_one_five_team_division(schedule, matchup_plan, league, history):
+def test_schedule_report_rows_for_one_four_team_and_one_five_team_division(schedule, matchup_plan, league, history, tmp_path):
     report = build_schedule_report(
         schedule=schedule,
         matchup_plan=matchup_plan,
@@ -95,6 +101,9 @@ def test_schedule_report_rows_for_one_four_team_and_one_five_team_division(sched
         history_path=Path("test-history.json"),
         elapsed_time_seconds=0.0,
     )
+    report_path = tmp_path / "report.txt"
+    TxtReportWriter(str(report_path)).write(report)
+    print(f"Schedule report: {report_path}")
 
     rows_by_team = {row.team: row for row in report.teams}
     expected_rows = EXPECTED_ROWS[_league_id(league)]

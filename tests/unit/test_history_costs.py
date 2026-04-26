@@ -1,5 +1,5 @@
 from pnfl_scheduler.domain.history import NonConfHistory
-from pnfl_scheduler.domain.teams import lookup_team
+from pnfl_scheduler.domain.league import lookup_team
 from tests.conftest import HISTORY_PATH, TEST_SEASON
 
 EXPECTED_H2H_COSTS = {

@@ -4,9 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pnfl_scheduler.domain.history import NonConfHistory
-from pnfl_scheduler.domain.league import League
+from pnfl_scheduler.domain.league import League, Team, ordered_teams
 from pnfl_scheduler.domain.schedule import Schedule
-from pnfl_scheduler.domain.teams import Team, ordered_teams
 from pnfl_scheduler.schedulers.types import MatchupPlan
 
 
@@ -20,7 +19,7 @@ class TeamScheduleReport:
     history_opponent: str
     history_last_played: str
     nonconference_opponents: tuple[str, ...]
-    nonconference_game_ranks: str = ""
+    nonconference_game_ranks: str
 
 
 @dataclass(frozen=True)
@@ -102,12 +101,12 @@ def build_schedule_report(
         nonconference_game_ranks = ",".join(str(rank) for rank in sorted(rank_by_team[opp] for opp in nonconference_opponents))
         extra_opponent = extra_opponent_by_team.get(team)
         history_opponent = history_opponent_by_team.get(team)
-        extra_opponent_city = extra_opponent.metro if extra_opponent is not None else "-"
+        extra_opponent_metro = extra_opponent.metro if extra_opponent is not None else "-"
         if history_opponent is None:
-            history_opponent_city = "-"
+            history_opponent_metro = "-"
             history_last_played = "-"
         else:
-            history_opponent_city = history_opponent.metro
+            history_opponent_metro = history_opponent.metro
             if history is None:
                 history_last_played = "unknown"
             else:
@@ -121,8 +120,8 @@ def build_schedule_report(
                 schedule_rank=schedule_rank_by_team[team],
                 nonconference_rank=nonconference_rank_by_team[team],
                 nonconference_game_ranks=nonconference_game_ranks,
-                extra_opponent=extra_opponent_city,
-                history_opponent=history_opponent_city,
+                extra_opponent=extra_opponent_metro,
+                history_opponent=history_opponent_metro,
                 history_last_played=history_last_played,
                 nonconference_opponents=tuple(opponent.metro for opponent in nonconference_opponents),
             )

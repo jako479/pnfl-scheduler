@@ -6,18 +6,16 @@ import json
 from pathlib import Path
 from typing import TypedDict
 
-from pnfl_scheduler.domain.teams import Conference, Team
-
-FORMAT_VERSION = 1
+from pnfl_scheduler.domain.league import Conference, Team
 
 # Lowers the H2H cost for matchups between coaches that have never played each other
 NEVER_PLAYED_COST_BONUS = 1
 
 
-def _canonical_key(team_a: Team, team_b: Team) -> str:
-    """Return 'AFCcity|NFCcity' key for a non-conference pair."""
-    afc = team_a if team_a.conference == Conference.AFC else team_b
-    nfc = team_b if team_a.conference == Conference.AFC else team_a
+def _make_matchup_key(team_afc: Team, team_nfc: Team) -> str:
+    """Return 'AFC metro|NFC metro' key for a non-conference pair."""
+    afc = team_afc if team_afc.conference == Conference.AFC else team_nfc
+    nfc = team_nfc if team_afc.conference == Conference.AFC else team_afc
     return f"{afc.metro}|{nfc.metro}"
 
 
@@ -36,22 +34,9 @@ class NonConfHistory:
         data: _HistoryJson = json.loads(path.read_text(encoding="utf-8"))
         return cls(matchups=data["matchups"])
 
-    def save(self, path: Path | str) -> None:
-        """Write history to JSON file."""
-        path = Path(path)
-        data = {
-            "format_version": FORMAT_VERSION,
-            "matchups": self._matchups,
-        }
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
     def last_played(self, team_a: Team, team_b: Team) -> int | None:
         """Return the last season these two teams played, or None if never."""
-        return self._matchups.get(_canonical_key(team_a, team_b))
-
-    def record_matchup(self, team_a: Team, team_b: Team, season: int) -> None:
-        """Record that these two teams played in the given season."""
-        self._matchups[_canonical_key(team_a, team_b)] = season
+        return self._matchups.get(_make_matchup_key(team_a, team_b))
 
     @staticmethod
     def _played_opponent_cost(last_played: int, season: int) -> int:

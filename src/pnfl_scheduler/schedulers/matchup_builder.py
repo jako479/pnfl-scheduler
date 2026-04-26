@@ -35,11 +35,10 @@ from collections.abc import Mapping, Sequence
 from ortools.sat.python import cp_model
 
 from pnfl_scheduler.domain.history import NonConfHistory
-from pnfl_scheduler.domain.league import ConferenceRankings
-from pnfl_scheduler.domain.teams import Conference, Team
+from pnfl_scheduler.domain.league import TEAMS_PER_CONFERENCE, Conference, ConferenceRankings, Team
+from pnfl_scheduler.domain.schedule import GAMES_PER_WEEK, NUM_WEEKS, nonconference_games_for
 from pnfl_scheduler.schedulers.errors import SchedulerError
-from pnfl_scheduler.schedulers.helpers import canonical_pair, required_nonconference_games
-from pnfl_scheduler.schedulers.types import Matchup, MatchupPlan, Matchups
+from pnfl_scheduler.schedulers.types import Matchup, MatchupPlan, Matchups, make_matchup
 
 TOP_HALF_MAX_RANK = 5
 BOTTOM_HALF_MIN_RANK = 5
@@ -78,9 +77,9 @@ class _RankBasedNonConferenceModel:
 
     def _add_degree_constraints(self) -> None:
         for afc_team in self.afc_teams:
-            self.model.add(sum(self.x[afc_team, nfc_team] for nfc_team in self.nfc_teams) == required_nonconference_games(afc_team))
+            self.model.add(sum(self.x[afc_team, nfc_team] for nfc_team in self.nfc_teams) == nonconference_games_for(afc_team.division))
         for nfc_team in self.nfc_teams:
-            self.model.add(sum(self.x[afc_team, nfc_team] for afc_team in self.afc_teams) == required_nonconference_games(nfc_team))
+            self.model.add(sum(self.x[afc_team, nfc_team] for afc_team in self.afc_teams) == nonconference_games_for(nfc_team.division))
 
     def _add_top_bottom_constraints(self) -> None:
         for team in self.teams:
@@ -98,8 +97,8 @@ class _RankBasedNonConferenceModel:
         for team in self.teams:
             opponents = self._opponents_for(team)
             score = self.model.new_int_var(
-                required_nonconference_games(team),
-                9 * required_nonconference_games(team),
+                nonconference_games_for(team.division),
+                TEAMS_PER_CONFERENCE * nonconference_games_for(team.division),
                 f"nc_rank_sum_{team.metro}",
             )
             self.model.add(score == sum(self.rank_by_team[opponent] * self._var_for_pair(team, opponent) for opponent in opponents))
@@ -109,8 +108,8 @@ class _RankBasedNonConferenceModel:
         for conf in Conference:
             ranked_teams = self.ranked_teams_by_conf[conf]
             for stronger_team, weaker_team in zip(ranked_teams, ranked_teams[1:]):
-                stronger_games = required_nonconference_games(stronger_team)
-                weaker_games = required_nonconference_games(weaker_team)
+                stronger_games = nonconference_games_for(stronger_team.division)
+                weaker_games = nonconference_games_for(weaker_team.division)
                 self.model.add(
                     weaker_games * self.opponent_rank_sum[stronger_team] <= stronger_games * self.opponent_rank_sum[weaker_team],
                 )
@@ -142,7 +141,7 @@ class _RankBasedNonConferenceModel:
 
         # fmt: off
         return {
-            canonical_pair(afc_team, nfc_team)
+            make_matchup(afc_team, nfc_team)
             for (afc_team, nfc_team), var in self.x.items()
             if solver.value(var) == 1
         }
@@ -169,19 +168,19 @@ class MatchupBuilder:
         self.rank_by_team = self._rank_by_team()
         self.matchups: list[Matchup] = []
         self.selected_nonconference: set[Matchup] = set()
-        self.remaining_nonconference = {team: required_nonconference_games(team) for team in self.teams}
+        self.remaining_nonconference = {team: nonconference_games_for(team.division) for team in self.teams}
 
     def _add_conference_matchups(self) -> None:
         for i, team_i in enumerate(self.teams):
             for team_j in self.teams[i + 1 :]:
                 if team_i.conference == team_j.conference and team_i.division != team_j.division:
-                    self.matchups.append(canonical_pair(team_i, team_j))
+                    self.matchups.append(make_matchup(team_i, team_j))
 
     def _add_divisional_matchups(self) -> None:
         for i, team_i in enumerate(self.teams):
             for team_j in self.teams[i + 1 :]:
                 if team_i.division == team_j.division:
-                    pair = canonical_pair(team_i, team_j)
+                    pair = make_matchup(team_i, team_j)
                     self.matchups.append(pair)
                     self.matchups.append(pair)
 
@@ -224,8 +223,8 @@ class MatchupBuilder:
             raise SchedulerError(f"Non-conference inventory left unresolved slots: {unresolved}")
         if len(self.selected_nonconference) != 40:
             raise SchedulerError(f"Expected 40 non-conference games, got {len(self.selected_nonconference)}")
-        if len(self.matchups) != 144:
-            raise SchedulerError(f"Expected 144 total matchups in phase-1 inventory, got {len(self.matchups)}")
+        if len(self.matchups) != (NUM_WEEKS * GAMES_PER_WEEK):
+            raise SchedulerError(f"Expected {NUM_WEEKS * GAMES_PER_WEEK} total matchups in phase-1 inventory, got {len(self.matchups)}")
 
         return MatchupPlan(matchups=self.matchups)
 

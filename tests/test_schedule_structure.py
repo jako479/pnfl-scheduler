@@ -1,6 +1,6 @@
 from collections import Counter
 
-from pnfl_scheduler.domain.teams import GAMES_PER_WEEK, NUM_WEEKS
+from pnfl_scheduler.domain.schedule import GAMES_PER_WEEK, NUM_WEEKS
 
 
 def test_game_count(schedule):

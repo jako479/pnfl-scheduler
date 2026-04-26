@@ -72,10 +72,10 @@ from collections.abc import Sequence
 
 from ortools.sat.python import cp_model
 
-from pnfl_scheduler.domain.schedule import Game, Schedule
-from pnfl_scheduler.domain.teams import FIVE_TEAM_DIVISIONS, FOUR_TEAM_DIVISIONS, NUM_WEEKS, Team
-from pnfl_scheduler.schedulers.helpers import canonical_pair
-from pnfl_scheduler.schedulers.types import Matchup, Matchups
+from pnfl_scheduler.config import DEFAULT_TIME_LIMIT
+from pnfl_scheduler.domain.league import Team
+from pnfl_scheduler.domain.schedule import HOME_GAMES_PER_TEAM, NUM_WEEKS, WEEK_16_DIVISIONAL_GAMES, Game, Schedule
+from pnfl_scheduler.schedulers.types import Matchup, Matchups, make_matchup
 
 
 class ScheduleBuilder:
@@ -87,21 +87,21 @@ class ScheduleBuilder:
         self.error_cls = error_cls
 
         self.weeks = range(NUM_WEEKS)
-        self.home_games_per_team = 8
+        self.home_games_per_team = HOME_GAMES_PER_TEAM
 
         self.div_opponents: dict[Team, list[Team]] = {}
         for team in self.teams:
             self.div_opponents[team] = [opp for opp in self.teams if opp.division == team.division and opp != team]
 
-        self.four_team_set: set[Team] = {t for t in self.teams if t.division in FOUR_TEAM_DIVISIONS}
-        self.five_team_set: set[Team] = {t for t in self.teams if t.division in FIVE_TEAM_DIVISIONS}
+        self.four_team_set: set[Team] = {t for t in self.teams if t.division.expected_size == 4}
+        self.five_team_set: set[Team] = {t for t in self.teams if t.division.expected_size == 5}
 
         self.divisional_pairs: list[Matchup] = []
         self.conference_pairs: list[Matchup] = []
         self.non_conference_pairs: list[Matchup] = []
         for idx, team_i in enumerate(self.teams):
             for team_j in self.teams[idx + 1 :]:
-                pair = canonical_pair(team_i, team_j)
+                pair = make_matchup(team_i, team_j)
                 if team_i.division == team_j.division:
                     self.divisional_pairs.append(pair)
                 elif team_i.conference == team_j.conference:
@@ -356,7 +356,8 @@ class ScheduleBuilder:
         # Require exactly 8 of the 9 games in the final week to be divisional.
         last_week = NUM_WEEKS - 1
         self.model.add(
-            sum(self.x[team_i, team_j, last_week] + self.x[team_j, team_i, last_week] for team_i, team_j in self.divisional_pairs) == 8
+            sum(self.x[team_i, team_j, last_week] + self.x[team_j, team_i, last_week] for team_i, team_j in self.divisional_pairs)
+            == WEEK_16_DIVISIONAL_GAMES
         )
 
     def _constraint_late_divisional_presence(self) -> None:
@@ -386,7 +387,7 @@ class ScheduleBuilder:
         self._constraint_week_16_matchups()
         self._constraint_late_divisional_presence()
 
-    def _solve_model(self, seed: int = 0, time_limit: float = 900.0) -> Schedule:
+    def _solve_model(self, seed: int = 0, time_limit: float = DEFAULT_TIME_LIMIT) -> Schedule:
         solver = cp_model.CpSolver()
         solver.parameters.random_seed = seed
         solver.parameters.randomize_search = True
@@ -404,6 +405,6 @@ class ScheduleBuilder:
 
         return Schedule(games=tuple(games))
 
-    def build_schedule(self, matchups: Matchups, seed: int = 0, time_limit: float = 900.0) -> Schedule:
+    def build_schedule(self, matchups: Matchups, seed: int = 0, time_limit: float = DEFAULT_TIME_LIMIT) -> Schedule:
         self._populate_model(matchups=matchups)
         return self._solve_model(seed=seed, time_limit=time_limit)

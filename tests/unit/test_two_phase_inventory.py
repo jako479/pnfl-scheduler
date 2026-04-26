@@ -3,11 +3,9 @@ from collections import Counter
 import pytest
 
 from pnfl_scheduler.domain.history import NonConfHistory
-from pnfl_scheduler.domain.league import League
-from pnfl_scheduler.domain.teams import Conference, Division, Team
+from pnfl_scheduler.domain.league import Conference, Division, League, Team
 from pnfl_scheduler.schedulers.fixed_matchup_builder import FIXED_NONCONF_RANK_OPPONENTS, FixedMatchupBuilder
-from pnfl_scheduler.schedulers.helpers import canonical_pair
-from pnfl_scheduler.schedulers.types import MatchupPlan
+from pnfl_scheduler.schedulers.types import MatchupPlan, make_matchup
 from tests.conftest import HISTORY_PATH, TEST_SEASON
 
 
@@ -61,7 +59,7 @@ def test_phase_one_inventory_has_expected_divisional_and_conference_counts(fixed
 
     for i, team_a in enumerate(league.teams):
         for team_b in league.teams[i + 1 :]:
-            pair = canonical_pair(team_a, team_b)
+            pair = make_matchup(team_a, team_b)
             if team_a.division == team_b.division:
                 assert pair_counts[pair] == 2, f"{team_a.metro}/{team_b.metro}: divisional pair should appear twice"
             elif team_a.conference == team_b.conference:

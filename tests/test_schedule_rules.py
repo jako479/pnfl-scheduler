@@ -1,4 +1,5 @@
-from pnfl_scheduler.domain.teams import Division, NUM_WEEKS
+from pnfl_scheduler.domain.league import Division
+from pnfl_scheduler.domain.schedule import NUM_WEEKS
 
 
 def test_each_team_plays_exactly_one_game_per_week(schedule, teams):

@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pnfl_scheduler.domain.teams import Team
+from pnfl_scheduler.domain.league import Division, Team
+
+NUM_WEEKS = 16
+GAMES_PER_WEEK = 9
+HOME_GAMES_PER_TEAM = NUM_WEEKS // 2
+WEEK_16_DIVISIONAL_GAMES = 8
+
+
+def nonconference_games_for(division: Division) -> int:
+    return 5 if division.expected_size == 4 else 4
 
 
 @dataclass(frozen=True)

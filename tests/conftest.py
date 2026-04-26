@@ -5,20 +5,20 @@ from pathlib import Path
 import pytest
 
 from pnfl_scheduler.domain.history import NonConfHistory
-from pnfl_scheduler.domain.league import League, build_league
-from pnfl_scheduler.domain.teams import Division
+from pnfl_scheduler.domain.league import Division, League, build_league
 from pnfl_scheduler.schedulers import DEFAULT_SCHEDULER, available_schedulers, get_scheduler
 from pnfl_scheduler.schedulers.types import SchedulerResult
+from pnfl_scheduler.writers.report import TxtReportWriter, build_schedule_report
 
 HISTORY_PATH = Path(__file__).resolve().parent.parent / "data" / "nonconf_history.json"
 TEST_SEASON = 2048
 
 
 _DIVISIONS: dict[str, Sequence[str]] = {
-    Division.AFC_EAST.section_name: ("New England", "Buffalo", "Miami", "Jacksonville"),
-    Division.AFC_WEST.section_name: ("Cincinnati", "Denver", "Los Angeles", "Las Vegas", "Pittsburgh"),
-    Division.NFC_EAST.section_name: ("Philadelphia", "Washington", "New York", "Atlanta"),
-    Division.NFC_WEST.section_name: ("Chicago", "Green Bay", "Minnesota", "Seattle", "San Francisco"),
+    Division.AFC_EAST.name: ("New England", "Buffalo", "Miami", "Jacksonville"),
+    Division.AFC_WEST.name: ("Cincinnati", "Denver", "Los Angeles", "Las Vegas", "Pittsburgh"),
+    Division.NFC_EAST.name: ("Philadelphia", "Washington", "New York", "Atlanta"),
+    Division.NFC_WEST.name: ("Chicago", "Green Bay", "Minnesota", "Seattle", "San Francisco"),
 }
 
 
@@ -79,22 +79,6 @@ def pytest_collection_modifyitems(config, items):
 _solve_cache: dict[tuple[int, str], SchedulerResult] = {}
 
 
-def _solve_for_league(league: League, scheduler_kind: str) -> SchedulerResult:
-    cache_key = (id(league), scheduler_kind)
-    if cache_key not in _solve_cache:
-        seed = random.randint(0, 1_000_000)
-        print(f"\nScheduler seed ({scheduler_kind}): {seed}")
-        history = NonConfHistory.load(HISTORY_PATH)
-        scheduler = get_scheduler(scheduler_kind)
-        _solve_cache[cache_key] = scheduler(
-            league=league,
-            seed=seed,
-            history=history,
-            season=TEST_SEASON,
-        )
-    return _solve_cache[cache_key]
-
-
 @pytest.fixture(params=_ALL_LEAGUES, scope="session")
 def league(request) -> League:
     return request.param
@@ -106,8 +90,32 @@ def teams(league: League):
 
 
 @pytest.fixture(scope="session")
-def scheduler_result(league, request) -> SchedulerResult:
-    return _solve_for_league(league, request.config.getoption("--scheduler"))
+def scheduler_result(league, request, tmp_path_factory) -> SchedulerResult:
+    scheduler_kind = request.config.getoption("--scheduler")
+    cache_key = (id(league), scheduler_kind)
+    if cache_key not in _solve_cache:
+        seed = random.randint(0, 1_000_000)
+        print(f"\nScheduler seed ({scheduler_kind}): {seed}")
+        history = NonConfHistory.load(HISTORY_PATH)
+        scheduler = get_scheduler(scheduler_kind)
+        result = scheduler(league=league, seed=seed, history=history, season=TEST_SEASON)
+        _solve_cache[cache_key] = result
+
+        report = build_schedule_report(
+            schedule=result.schedule,
+            matchup_plan=result.matchup_plan,
+            league=league,
+            history=history,
+            seed=seed,
+            scheduler_kind=scheduler_kind,
+            config_path=Path("test-config.ini"),
+            history_path=HISTORY_PATH,
+            elapsed_time_seconds=0.0,
+        )
+        report_path = tmp_path_factory.mktemp("schedule_report") / "report.txt"
+        TxtReportWriter(str(report_path)).write(report)
+        print(f"Schedule report: {report_path}")
+    return _solve_cache[cache_key]
 
 
 @pytest.fixture(scope="session")
