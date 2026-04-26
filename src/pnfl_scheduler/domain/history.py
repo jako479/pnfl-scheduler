@@ -31,9 +31,9 @@ class NonConfHistory:
         data: _HistoryJson = json.loads(path.read_text(encoding="utf-8"))
         return cls(matchups=data["matchups"])
 
-    def last_played(self, afc_team: Team, nfc_team: Team) -> int:
+    def last_played(self, team_a: Team, team_b: Team) -> int:
         """Return the last season these two teams played."""
-        return self._matchups[_make_matchup_key(afc_team, nfc_team)]
+        return self._matchups[_make_matchup_key(team_a, team_b)]
 
     @staticmethod
     def _played_opponent_cost(last_played: int, season: int) -> int:
