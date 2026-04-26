@@ -111,7 +111,7 @@ def build_schedule_report(
                 history_last_played = "unknown"
             else:
                 last_played = history.last_played(team, history_opponent)
-                history_last_played = "never" if last_played is None else str(last_played)
+                history_last_played = str(last_played)
 
         rows.append(
             TeamScheduleReport(

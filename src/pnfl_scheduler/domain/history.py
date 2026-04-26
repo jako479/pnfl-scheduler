@@ -8,22 +8,19 @@ from typing import TypedDict
 
 from pnfl_scheduler.domain.league import Conference, Team
 
-# Lowers the H2H cost for matchups between coaches that have never played each other
-NEVER_PLAYED_COST_BONUS = 1
 
-
-def _make_matchup_key(team_afc: Team, team_nfc: Team) -> str:
+def _make_matchup_key(team_a: Team, team_b: Team) -> str:
     """Return 'AFC metro|NFC metro' key for a non-conference pair."""
-    afc = team_afc if team_afc.conference == Conference.AFC else team_nfc
-    nfc = team_nfc if team_afc.conference == Conference.AFC else team_afc
+    afc = team_a if team_a.conference == Conference.AFC else team_b
+    nfc = team_b if team_a.conference == Conference.AFC else team_a
     return f"{afc.metro}|{nfc.metro}"
 
 
 class NonConfHistory:
     """Tracks the last season each non-conference pair played."""
 
-    def __init__(self, matchups: dict[str, int | None] | None = None) -> None:
-        self._matchups: dict[str, int | None] = {} if matchups is None else dict(matchups)
+    def __init__(self, matchups: dict[str, int] | None = None) -> None:
+        self._matchups: dict[str, int] = {} if matchups is None else dict(matchups)
 
     @classmethod
     def load(cls, path: Path | str) -> NonConfHistory:
@@ -34,9 +31,9 @@ class NonConfHistory:
         data: _HistoryJson = json.loads(path.read_text(encoding="utf-8"))
         return cls(matchups=data["matchups"])
 
-    def last_played(self, team_a: Team, team_b: Team) -> int | None:
-        """Return the last season these two teams played, or None if never."""
-        return self._matchups.get(_make_matchup_key(team_a, team_b))
+    def last_played(self, afc_team: Team, nfc_team: Team) -> int:
+        """Return the last season these two teams played."""
+        return self._matchups[_make_matchup_key(afc_team, nfc_team)]
 
     @staticmethod
     def _played_opponent_cost(last_played: int, season: int) -> int:
@@ -49,14 +46,6 @@ class NonConfHistory:
         """
         return last_played - season + 1
 
-    def _never_played_cost(self, season: int) -> int:
-        """Return a cost one lower than the oldest played matchup cost."""
-        played_seasons = [played for played in self._matchups.values() if played is not None and played < season]
-        if not played_seasons:
-            raise ValueError("Cannot compute never-played cost without any prior played matchups in history")
-        oldest_played = min(played_seasons)
-        return self._played_opponent_cost(oldest_played, season) - NEVER_PLAYED_COST_BONUS
-
     def opponent_cost(self, team: Team, opp: Team, season: int) -> int:
         """Return cost for this matchup. Lower = more overdue.
 
@@ -64,17 +53,9 @@ class NonConfHistory:
         - last season -> 0
         - 2 seasons ago -> -1
         - 3 seasons ago -> -2
-
-        Never played returns one lower than the oldest played matchup cost for
-        the current season.
         """
-        s = self.last_played(team, opp)
-        if s is None:
-            return self._never_played_cost(season)
-
-        return self._played_opponent_cost(s, season)
+        return self._played_opponent_cost(self.last_played(team, opp), season)
 
 
 class _HistoryJson(TypedDict):
-    format_version: int
-    matchups: dict[str, int | None]
+    matchups: dict[str, int]
