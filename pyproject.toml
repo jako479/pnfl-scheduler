@@ -14,9 +14,6 @@ dependencies = ["ortools>=9.10"]
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
 
-[project.scripts]
-pnfl-scheduler = "pnfl_scheduler.cli:main"
-
 [project.entry-points."pnfl.commands"]
 generate-schedule = "pnfl_scheduler.cli:main"
 
@@ -25,10 +22,10 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--durations=3"
+addopts = "-ra --strict-markers --strict-config"
 
 [tool.ruff]
-line-length = 140
+line-length = 120
 
 [tool.ruff.format]
 quote-style = "double"

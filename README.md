@@ -28,19 +28,13 @@ long-unplayed matchups, with costs increasing as matchups become more recent.
 ## CLI
 
 ```powershell
-pnfl-scheduler --output season.html --season 2026
-pnfl-scheduler --output season.txt --season 2026
-pnfl-scheduler --output season.html --season 2026 --scheduler two-phase-rank
-pnfl-scheduler --output season.html --season 2026 --seed 123456
-pnfl-scheduler --output season.out --format html --season 2026
-pnfl-scheduler --output season.out --format txt --season 2026
-pnfl-scheduler --output season.html --report season-report.txt --season 2026
-```
-
-If the console script is not available in the active environment, use:
-
-```powershell
-python -m pnfl_scheduler --output season.html --report season-report.txt --season 2026
+pnfl generate-schedule --output season.html --season 2026
+pnfl generate-schedule --output season.txt --season 2026
+pnfl generate-schedule --scheduler two-phase-rank --output season.html --season 2026
+pnfl generate-schedule --output season.html --season 2026 --seed 123456
+pnfl generate-schedule --output season.out --format html --season 2026
+pnfl generate-schedule --output season.out --format txt --season 2026
+pnfl generate-schedule --output season.html --report season-report.txt --season 2026
 ```
 
 The schedule writer is chosen from `--format` when provided, otherwise from the
@@ -154,7 +148,7 @@ Phase 2 enforces the full placement rules, including:
 
 ## Package Layout
 
-- `pnfl_scheduler.cli` — argparse CLI entry point (`pnfl-scheduler` console script).
+- `pnfl_scheduler.cli` — argparse CLI entry point (`pnfl generate-schedule` subcommand).
 - `pnfl_scheduler.main` — `generate_schedule()` orchestrator that loads config,
   runs the chosen scheduler, and invokes the writers.
 - `pnfl_scheduler.config` — `load_settings`, `load_league`, and `find_config_path`.
@@ -175,6 +169,7 @@ Phase 2 enforces the full placement rules, including:
 
 ```powershell
 pytest
+pytest tests/unit/test_history_costs.py -v -x -vv --all-configs
 pytest tests/unit/test_two_phase_inventory.py
 pytest tests/test_two_phase_schedule_rules.py
 pytest --all-configs

@@ -15,7 +15,7 @@ from pnfl_scheduler.writers import available_writer_formats
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="pnfl-scheduler",
+        prog="pnfl generate-schedule",
         description="Generates the seasonal game schedule for the PNFL.",
     )
     parser.add_argument(
