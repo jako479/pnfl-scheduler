@@ -1,8 +1,0 @@
-{
-  "typeCheckingMode": "basic",
-  "reportUnusedImport": "warning",
-  "venvPath": "..",
-  "venv": ".venv",
-  "extraPaths": ["src", "tests"],
-  "include": ["src", "tests", "scripts"]
-}
