@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+from os import PathLike
 from pathlib import Path
 from typing import TypedDict
 
 from pnfl_scheduler.domain.league import Conference, Team
+
+StrPath = str | PathLike[str]
 
 
 def _make_matchup_key(team_a: Team, team_b: Team) -> str:
@@ -23,7 +26,7 @@ class NonConfHistory:
         self._matchups: dict[str, int] = {} if matchups is None else dict(matchups)
 
     @classmethod
-    def load(cls, path: Path | str) -> NonConfHistory:
+    def load(cls, path: StrPath) -> NonConfHistory:
         """Load from JSON file. Returns empty history if file doesn't exist."""
         path = Path(path)
         if not path.exists():

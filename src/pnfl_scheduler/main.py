@@ -1,33 +1,46 @@
+"""Orchestrate schedule generation: load config, run a scheduler, write outputs."""
+
 from __future__ import annotations
 
 import time
+from os import PathLike
 from pathlib import Path
 
-from pnfl_scheduler.config import load_league, load_settings
+from pnfl_scheduler.config import load_config, load_league
 from pnfl_scheduler.domain.history import NonConfHistory
-from pnfl_scheduler.schedulers import DEFAULT_SCHEDULER, get_scheduler
-from pnfl_scheduler.schedulers.types import SchedulerResult
-from pnfl_scheduler.writers import get_writer
+from pnfl_scheduler.schedulers.types import DEFAULT_SCHEDULER, SchedulerResult, get_scheduler
 from pnfl_scheduler.writers.report import TxtReportWriter, build_schedule_report
+from pnfl_scheduler.writers.writer import get_writer
 
-PROJECT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_HISTORY_PATH = PROJECT_DIR / "data" / "nonconf_history.json"
+StrPath = str | PathLike[str]
+
+
+def default_report_path(output: StrPath) -> Path:
+    """Return `<output-stem>-report.txt` next to `output`."""
+    output = Path(output)
+    return output.with_name(f"{output.stem}-report.txt")
 
 
 def generate_schedule(
     *,
-    output: Path,
+    output: StrPath,
     output_format: str,
     season: int,
     scheduler: str = DEFAULT_SCHEDULER,
-    config_path: Path,
-    history_path: Path,
-    report_path: Path,
+    config_path: StrPath,
+    history_path: StrPath,
+    report_path: StrPath,
     seed: int,
     time_limit: float | None,
     command_line: str,
 ) -> SchedulerResult:
-    settings = load_settings(config_path)
+    """Run the chosen scheduler and persist its schedule + report.
+
+    Loads league + non-conference history from the given paths, solves with
+    the selected scheduler (subject to `time_limit`), writes the schedule via
+    the format-appropriate writer, and writes a human-readable text report.
+    """
+    config = load_config(Path(config_path))
     league = load_league(config_path)
     history = NonConfHistory.load(history_path)
     writer = get_writer(output_format, output)
@@ -38,7 +51,7 @@ def generate_schedule(
         history=history,
         season=season,
         seed=seed,
-        time_limit=time_limit if time_limit is not None else settings.time_limit,
+        time_limit=time_limit if time_limit is not None else config.time_limit,
     )
     elapsed = time.perf_counter() - started
 

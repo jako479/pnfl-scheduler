@@ -6,8 +6,7 @@ import pytest
 
 from pnfl_scheduler.domain.history import NonConfHistory
 from pnfl_scheduler.domain.league import Division, League, build_league
-from pnfl_scheduler.schedulers import DEFAULT_SCHEDULER, available_schedulers, get_scheduler
-from pnfl_scheduler.schedulers.types import SchedulerResult
+from pnfl_scheduler.schedulers.types import DEFAULT_SCHEDULER, SchedulerResult, available_schedulers, get_scheduler
 from pnfl_scheduler.writers.report import TxtReportWriter, build_schedule_report
 
 HISTORY_PATH = Path(__file__).resolve().parent.parent / "data" / "nonconf_history.json"
@@ -28,20 +27,80 @@ def _make_league(afc_standings: Sequence[str], nfc_standings: Sequence[str]) -> 
 
 # Baseline conference ranking variant.
 LEAGUE_5_SLOTS = _make_league(
-    ("New England", "Cincinnati", "Pittsburgh", "Denver", "Miami", "Buffalo", "Jacksonville", "Los Angeles", "Las Vegas"),
-    ("Washington", "Chicago", "Minnesota", "San Francisco", "Atlanta", "New York", "Philadelphia", "Green Bay", "Seattle"),
+    (
+        "New England",
+        "Cincinnati",
+        "Pittsburgh",
+        "Denver",
+        "Miami",
+        "Buffalo",
+        "Jacksonville",
+        "Los Angeles",
+        "Las Vegas",
+    ),
+    (
+        "Washington",
+        "Chicago",
+        "Minnesota",
+        "San Francisco",
+        "Atlanta",
+        "New York",
+        "Philadelphia",
+        "Green Bay",
+        "Seattle",
+    ),
 )
 
 # Alternate conference ranking variant.
 LEAGUE_6_SLOTS = _make_league(
-    ("New England", "Cincinnati", "Miami", "Pittsburgh", "Buffalo", "Jacksonville", "Denver", "Los Angeles", "Las Vegas"),
-    ("Washington", "Chicago", "Atlanta", "Minnesota", "New York", "Philadelphia", "San Francisco", "Green Bay", "Seattle"),
+    (
+        "New England",
+        "Cincinnati",
+        "Miami",
+        "Pittsburgh",
+        "Buffalo",
+        "Jacksonville",
+        "Denver",
+        "Los Angeles",
+        "Las Vegas",
+    ),
+    (
+        "Washington",
+        "Chicago",
+        "Atlanta",
+        "Minnesota",
+        "New York",
+        "Philadelphia",
+        "San Francisco",
+        "Green Bay",
+        "Seattle",
+    ),
 )
 
 # Alternate conference ranking variant.
 LEAGUE_7_SLOTS = _make_league(
-    ("New England", "Cincinnati", "Miami", "Buffalo", "Jacksonville", "Pittsburgh", "Denver", "Los Angeles", "Las Vegas"),
-    ("Washington", "Chicago", "Atlanta", "New York", "Philadelphia", "Minnesota", "San Francisco", "Green Bay", "Seattle"),
+    (
+        "New England",
+        "Cincinnati",
+        "Miami",
+        "Buffalo",
+        "Jacksonville",
+        "Pittsburgh",
+        "Denver",
+        "Los Angeles",
+        "Las Vegas",
+    ),
+    (
+        "Washington",
+        "Chicago",
+        "Atlanta",
+        "New York",
+        "Philadelphia",
+        "Minnesota",
+        "San Francisco",
+        "Green Bay",
+        "Seattle",
+    ),
 )
 
 

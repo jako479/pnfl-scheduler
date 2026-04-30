@@ -81,7 +81,9 @@ def _validate_fixed_rank_table() -> None:
             if opp_rank not in FIXED_NONCONF_RANK_OPPONENTS:
                 raise SchedulerError(f"Rank {rank} references invalid opponent rank {opp_rank}")
             if rank not in FIXED_NONCONF_RANK_OPPONENTS[opp_rank]:
-                raise SchedulerError(f"Fixed non-conference rank table is not symmetric: {rank} -> {opp_rank} without the reverse edge")
+                raise SchedulerError(
+                    f"Fixed non-conference rank table is not symmetric: {rank} -> {opp_rank} without the reverse edge"
+                )
 
 
 def _pseudo_inverse_target_rank(rank: int) -> int:
@@ -157,12 +159,16 @@ class FixedMatchupBuilder:
         self._add_nonconference_pairs(pairs)
 
     def _add_history_matchups(self) -> None:
-        afc_remaining = [team for team in self.teams if team.conference == Conference.AFC and self.remaining_nonconference[team] > 0]
-        nfc_remaining = [team for team in self.teams if team.conference == Conference.NFC and self.remaining_nonconference[team] > 0]
+        afc_remaining = [
+            team for team in self.teams if team.conference == Conference.AFC and self.remaining_nonconference[team] > 0
+        ]
+        nfc_remaining = [
+            team for team in self.teams if team.conference == Conference.NFC and self.remaining_nonconference[team] > 0
+        ]
         if {self.remaining_nonconference[team] for team in afc_remaining + nfc_remaining} - {1}:
-            unresolved = {  # fmt: off
+            unresolved = {
                 team.metro: remaining for team, remaining in self.remaining_nonconference.items() if remaining > 0
-            }  # fmt: on
+            }
             raise SchedulerError(f"History step expected only single-slot teams, got {unresolved}")
 
         pairs = self._solve_exact_assignment(
@@ -190,7 +196,10 @@ class FixedMatchupBuilder:
         team_b: Team,
     ) -> int:
         inverse_rank_cost = self._pseudo_inverse_rank_cost(team_a, team_b)
-        return H2H_COST_SCALE * self.history.opponent_cost(team_a, team_b, self.season) + INVERSE_RANK_COST_SCALE * inverse_rank_cost
+        return (
+            H2H_COST_SCALE * self.history.opponent_cost(team_a, team_b, self.season)
+            + INVERSE_RANK_COST_SCALE * inverse_rank_cost
+        )
 
     def _pseudo_inverse_rank_cost(
         self,

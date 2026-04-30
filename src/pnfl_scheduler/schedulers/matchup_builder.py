@@ -31,6 +31,7 @@ Basic schedule inventory requirements enforced by the matchup builder:
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from itertools import pairwise
 
 from ortools.sat.python import cp_model
 
@@ -77,18 +78,28 @@ class _RankBasedNonConferenceModel:
 
     def _add_degree_constraints(self) -> None:
         for afc_team in self.afc_teams:
-            self.model.add(sum(self.x[afc_team, nfc_team] for nfc_team in self.nfc_teams) == nonconference_games_for(afc_team.division))
+            self.model.add(
+                sum(self.x[afc_team, nfc_team] for nfc_team in self.nfc_teams)
+                == nonconference_games_for(afc_team.division)
+            )
         for nfc_team in self.nfc_teams:
-            self.model.add(sum(self.x[afc_team, nfc_team] for afc_team in self.afc_teams) == nonconference_games_for(nfc_team.division))
+            self.model.add(
+                sum(self.x[afc_team, nfc_team] for afc_team in self.afc_teams)
+                == nonconference_games_for(nfc_team.division)
+            )
 
     def _add_top_bottom_constraints(self) -> None:
         for team in self.teams:
             opponents = self._opponents_for(team)
             top_half_vars = [
-                self._var_for_pair(team, opponent) for opponent in opponents if self.rank_by_team[opponent] <= TOP_HALF_MAX_RANK
+                self._var_for_pair(team, opponent)
+                for opponent in opponents
+                if self.rank_by_team[opponent] <= TOP_HALF_MAX_RANK
             ]
             bottom_half_vars = [
-                self._var_for_pair(team, opponent) for opponent in opponents if self.rank_by_team[opponent] >= BOTTOM_HALF_MIN_RANK
+                self._var_for_pair(team, opponent)
+                for opponent in opponents
+                if self.rank_by_team[opponent] >= BOTTOM_HALF_MIN_RANK
             ]
             self.model.add(sum(top_half_vars) >= 1)
             self.model.add(sum(bottom_half_vars) >= 1)
@@ -101,17 +112,20 @@ class _RankBasedNonConferenceModel:
                 TEAMS_PER_CONFERENCE * nonconference_games_for(team.division),
                 f"nc_rank_sum_{team.metro}",
             )
-            self.model.add(score == sum(self.rank_by_team[opponent] * self._var_for_pair(team, opponent) for opponent in opponents))
+            self.model.add(
+                score == sum(self.rank_by_team[opponent] * self._var_for_pair(team, opponent) for opponent in opponents)
+            )
             self.opponent_rank_sum[team] = score
 
     def _add_rank_order_constraints(self) -> None:
         for conf in Conference:
             ranked_teams = self.ranked_teams_by_conf[conf]
-            for stronger_team, weaker_team in zip(ranked_teams, ranked_teams[1:]):
+            for stronger_team, weaker_team in pairwise(ranked_teams):
                 stronger_games = nonconference_games_for(stronger_team.division)
                 weaker_games = nonconference_games_for(weaker_team.division)
                 self.model.add(
-                    weaker_games * self.opponent_rank_sum[stronger_team] <= stronger_games * self.opponent_rank_sum[weaker_team],
+                    weaker_games * self.opponent_rank_sum[stronger_team]
+                    <= stronger_games * self.opponent_rank_sum[weaker_team],
                 )
 
     def _set_objective(self) -> None:
@@ -137,7 +151,9 @@ class _RankBasedNonConferenceModel:
 
         status = solver.solve(self.model)
         if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            raise SchedulerError(f"Rank-only non-conference model returned status {solver.status_name(status)} - no feasible inventory")
+            raise SchedulerError(
+                f"Rank-only non-conference model returned status {solver.status_name(status)} - no feasible inventory"
+            )
 
         # fmt: off
         return {
@@ -224,7 +240,9 @@ class MatchupBuilder:
         if len(self.selected_nonconference) != 40:
             raise SchedulerError(f"Expected 40 non-conference games, got {len(self.selected_nonconference)}")
         if len(self.matchups) != (NUM_WEEKS * GAMES_PER_WEEK):
-            raise SchedulerError(f"Expected {NUM_WEEKS * GAMES_PER_WEEK} total matchups in phase-1 inventory, got {len(self.matchups)}")
+            raise SchedulerError(
+                f"Expected {NUM_WEEKS * GAMES_PER_WEEK} total matchups in phase-1 inventory, got {len(self.matchups)}"
+            )
 
         return MatchupPlan(matchups=self.matchups)
 

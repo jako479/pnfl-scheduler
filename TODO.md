@@ -11,6 +11,6 @@
   keep teams from drawing all-top or all-bottom opponents.
 - Decide on final scheduler
 - Set up pre-commit hook and/or GitHub Actions to run `pytest` automatically.
-- Note on Python comprehension readability: prefer explicit loops when output
-  expression destructures multiple variables.
-- Consider switching to Pydantic for config loading
+- Consider switching to Pydantic for config handling
+- Consolidate scheduler notes from the schedulers\README.md and several scheduler
+  modules

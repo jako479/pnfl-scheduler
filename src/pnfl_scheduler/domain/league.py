@@ -1,3 +1,5 @@
+"""League structure: conferences, divisions, teams, and conference rankings."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -52,10 +54,13 @@ DIVISION_INDEX = {division: index for index, division in enumerate(DIVISION_ORDE
 
 @dataclass(frozen=True)
 class ConferenceRankings:
+    """Ordered standings for each conference; index 0 is the top-ranked team."""
+
     afc: tuple[Team, ...]
     nfc: tuple[Team, ...]
 
     def rank_of(self, team: Team) -> int:
+        """Return 1-based rank within `team`'s conference."""
         ranking = self.afc if team.conference == Conference.AFC else self.nfc
         return ranking.index(team) + 1
 
@@ -71,13 +76,18 @@ class Team:
 
 
 def build_teams(divisions: Mapping[str, Sequence[str]]) -> tuple[Team, ...]:
+    """Build the canonical teams tuple from division-keyed metro lists.
+
+    Validates that all four divisions are present, that each has its expected
+    size, and that no metro is duplicated. Teams are returned in division order.
+    """
     by_division: dict[Division, Sequence[str]] = {}
     for key, metros in divisions.items():
         try:
             division = Division[key]
-        except KeyError:
+        except KeyError as exc:
             valid = ", ".join(d.name for d in DIVISION_ORDER)
-            raise ValueError(f"Unknown division key {key!r}; expected one of {valid}")
+            raise ValueError(f"Unknown division key {key!r}; expected one of {valid}") from exc
         by_division[division] = metros
 
     missing = [d.name for d in DIVISION_ORDER if d.name not in divisions]
@@ -120,6 +130,8 @@ def ordered_teams(teams: Sequence[Team]) -> list[Team]:
 
 @dataclass(frozen=True)
 class League:
+    """The set of teams plus the AFC/NFC standings used for strength-of-schedule math."""
+
     teams: tuple[Team, ...]
     rankings: ConferenceRankings
 
@@ -129,6 +141,10 @@ def build_league(
     afc_ranking: Sequence[str],  # ranked metros
     nfc_ranking: Sequence[str],
 ) -> League:
+    """Build a `League` from raw INI-style division and ranking inputs.
+
+    Each ranking must list all teams of its conference exactly once.
+    """
     teams = build_teams(divisions)
     afc_ranked = tuple(lookup_team(teams, metro) for metro in afc_ranking)
     nfc_ranked = tuple(lookup_team(teams, metro) for metro in nfc_ranking)

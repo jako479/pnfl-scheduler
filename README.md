@@ -29,28 +29,12 @@ long-unplayed matchups, with costs increasing as matchups become more recent.
 
 ```powershell
 pnfl generate-schedule --output season.html --season 2026
-pnfl generate-schedule --output season.txt --season 2026
 pnfl generate-schedule --scheduler two-phase-rank --output season.html --season 2026
-pnfl generate-schedule --output season.html --season 2026 --seed 123456
-pnfl generate-schedule --output season.out --format html --season 2026
-pnfl generate-schedule --output season.out --format txt --season 2026
-pnfl generate-schedule --output season.html --report season-report.txt --season 2026
 ```
 
-The schedule writer is chosen from `--format` when provided, otherwise from the
-output file extension.
-
-Use `--scheduler` to choose the scheduling model:
-
-- `fixed-matchup` is the default
-- `two-phase-rank` uses the rank-only non-conference inventory builder
-
-A text report is written by default alongside the main output:
-
-- `season.html` -> `season-report.txt`
-- `season.txt` -> `season-report.txt`
-
-Use `--report` only to override that default report path.
+The schedule writer is chosen from `--format` when provided, otherwise from
+the output file extension. A text report is written by default alongside the
+main output (`season.html` -> `season-report.txt`); use `--report` to override.
 
 ## Setup
 
@@ -64,115 +48,17 @@ py -m pip install -e ".[dev]"
 
 ## Config
 
-The app reads `generate-schedule.ini` or `generate-schedule.dev.ini` from the
-working directory or a `config/` subdirectory of the working directory, via
-`Path.cwd()` lookups. Pass `--config /path/to/file.ini` to override.
-
-Relevant `.ini` sections:
-
-- `[Settings]` — solver settings (`TimeLimit`).
-- `[Divisions]` — current season's division membership.
-- `[ConferenceRanking]` — current season's prior-year standings input.
-
-Config loading is split across two functions in `pnfl_scheduler.config`:
-
-- `load_settings(path) -> Settings` — reads `[Settings]`.
-- `load_league(path) -> League` — reads `[Divisions]` + `[ConferenceRanking]`,
-  delegates to `pnfl_scheduler.domain.league.build_league` for domain
-  validation, and returns a fully-constructed `League` object (teams +
-  `ConferenceRankings`).
-
-Historical `YYYY` sections that may exist in `generate-schedule.dev.ini` are
-temporary analysis/backtesting inputs and are not used by the normal runtime
-CLI path.
-
-## How It Builds The Schedule
-
-Both current schedulers work in 2 phases:
-
-- Phase 1 builds the opponent inventory.
-- Phase 2 places that inventory into weeks and assigns home/away while enforcing
-  the schedule rules.
-
-### Phase 1
-
-Shared inventory pieces for both schedulers:
-
-- Divisional games: every divisional opponent twice.
-- Conference games: every same-conference opponent outside the division once.
-
-`fixed-matchup` builds non-conference inventory like this:
-
-- Fixed games: 3 opponents from the fixed rank table (e.g. 1 vs 1, 2, and 3)
-- Extra 4-team-division game: one AFC East vs NFC East pairing chosen by
-  closest rank gap, skipping fixed pairs.
-- Final H2H game: one remaining AFC vs NFC pairing chosen from non-conference
-  history plus pseudo-inverse rank cost. The final pairing targets
-  `1v6, 2v7, 3v8, 4v9, 5v5, 6v1, 7v2, 8v3, 9v4`. History uses actual gap from
-  the scheduled season (`last season = 0`, older matchups go lower, and
-  never-played is lower than the oldest played matchup), with H2H weighted at
-  `1.0x` the inverse-rank term.
-
-`two-phase-rank` builds non-conference inventory differently:
-
-- All 40 AFC vs NFC games are chosen together in one CP-SAT model.
-- Teams in 4-team divisions get 5 non-conference games; teams in 5-team
-  divisions get 4.
-- Higher-ranked teams are forced toward harder non-conference opponent sets, and
-  lower-ranked teams toward easier ones.
-- Each team must draw at least one opponent from the top half of the other
-  conference ranking and at least one from the bottom half.
-
-Both models still end phase 1 with the same schedule shape:
-
-- 5 non-conference games for 4-team divisions.
-- 4 non-conference games for 5-team divisions.
-- 144 total pairings in the full season inventory.
-
-### Phase 2
-
-Phase 2 is the same for both current schedulers. It takes the fixed phase-1
-inventory and uses CP-SAT to assign each matchup to a week and home/away slot.
-
-Phase 2 enforces the full placement rules, including:
-
-- each team plays exactly once per week and hosts exactly 8 games
-- no back-to-back meetings between the same two teams
-- divisional, conference, and non-conference home-balance rules
-- home/away streak limits and 6-game home/away window balance
-- divisional streak and density limits
-- back-loaded divisional scheduling in the second half
-- limits on non-interleaved divisional pairings
-- Week 16 containing exactly 8 divisional games
-- every team playing at least one divisional game in the final 2 weeks
-
-## Package Layout
-
-- `pnfl_scheduler.cli` — argparse CLI entry point (`pnfl generate-schedule` subcommand).
-- `pnfl_scheduler.main` — `generate_schedule()` orchestrator that loads config,
-  runs the chosen scheduler, and invokes the writers.
-- `pnfl_scheduler.config` — `load_settings`, `load_league`, and `find_config_path`.
-- `pnfl_scheduler.domain`
-  Teams, the `League` aggregate (with `ConferenceRankings`), schedule data
-  structures, and non-conference history. Domain types have no knowledge of
-  config files. `domain.league.build_league` performs all semantic validation
-  (ranking size/coverage, cross-conference reuse, consistency with divisions).
-- `pnfl_scheduler.writers`
-  HTML, text schedule, and text report writers.
-- `pnfl_scheduler.schedulers`
-  Scheduler registry and the current scheduler implementations. Schedulers
-  accept a pre-validated `League` and populate the non-conference pair
-  categories on `MatchupPlan` directly — the report reads them as data rather
-  than recomputing.
+Reads `generate-schedule.ini` from the working directory or a `config/`
+subdirectory. Pass `--config /path/to/file.ini` to override. See
+[`config/generate-schedule.ini`](config/generate-schedule.ini) for the full
+list of settings.
 
 ## Testing
 
 ```powershell
 pytest
-pytest tests/unit/test_history_costs.py -v -x -vv --all-configs
-pytest tests/unit/test_two_phase_inventory.py
-pytest tests/test_two_phase_schedule_rules.py
 pytest --all-configs
+pytest tests/test_history_costs.py -v -x -vv --all-configs
 ```
 
 ## Legacy Models

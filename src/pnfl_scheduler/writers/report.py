@@ -1,12 +1,17 @@
+"""Schedule report builder + plain-text report writer."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
+from os import PathLike
 from pathlib import Path
 
 from pnfl_scheduler.domain.history import NonConfHistory
 from pnfl_scheduler.domain.league import League, Team, ordered_teams
 from pnfl_scheduler.domain.schedule import Schedule
 from pnfl_scheduler.schedulers.types import MatchupPlan
+
+StrPath = str | PathLike[str]
 
 
 @dataclass(frozen=True)
@@ -50,7 +55,9 @@ def _schedule_rank_by_team(
 
     score_by_team: dict[Team, int] = {}
     for team in league.teams:
-        score_by_team[team] = sum(rank_by_team[(game.away if game.home == team else game.home)] for game in schedule.games_for(team))
+        score_by_team[team] = sum(
+            rank_by_team[(game.away if game.home == team else game.home)] for game in schedule.games_for(team)
+        )
 
     ordered = sorted(league.teams, key=lambda t: (score_by_team[t], t.metro))
     schedule_rank_by_team = {team: idx + 1 for idx, team in enumerate(ordered)}
@@ -77,11 +84,12 @@ def build_schedule_report(
     history: NonConfHistory | None,
     seed: int,
     scheduler_kind: str,
-    config_path: Path,
-    history_path: Path,
+    config_path: StrPath,
+    history_path: StrPath,
     elapsed_time_seconds: float,
     command_line: str | None = None,
 ) -> ScheduleReport:
+    """Compute per-team schedule strength rows and return a structured report."""
     teams = ordered_teams(league.teams)
     rank_by_team, schedule_rank_by_team, nonconference_rank_by_team = _schedule_rank_by_team(schedule, league)
 
@@ -98,7 +106,9 @@ def build_schedule_report(
     rows: list[TeamScheduleReport] = []
     for team in teams:
         nonconference_opponents = _nonconference_opponents(schedule, team)
-        nonconference_game_ranks = ",".join(str(rank) for rank in sorted(rank_by_team[opp] for opp in nonconference_opponents))
+        nonconference_game_ranks = ",".join(
+            str(rank) for rank in sorted(rank_by_team[opp] for opp in nonconference_opponents)
+        )
         extra_opponent = extra_opponent_by_team.get(team)
         history_opponent = history_opponent_by_team.get(team)
         extra_opponent_metro = extra_opponent.metro if extra_opponent is not None else "-"
@@ -140,7 +150,9 @@ def build_schedule_report(
 
 @dataclass(frozen=True)
 class TxtReportWriter:
-    path: Path | str
+    """Renders a `ScheduleReport` as a fixed-width text table and writes it to `path`."""
+
+    path: StrPath
 
     def write(self, report: ScheduleReport) -> None:
         Path(self.path).write_text(self.render(report), encoding="utf-8")

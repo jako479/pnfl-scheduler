@@ -7,10 +7,10 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from pnfl_scheduler.config import find_config_path
-from pnfl_scheduler.main import DEFAULT_HISTORY_PATH, generate_schedule
-from pnfl_scheduler.schedulers import DEFAULT_SCHEDULER, available_schedulers
-from pnfl_scheduler.writers import available_writer_formats
+from pnfl_scheduler.config import find_config_path, find_history_path
+from pnfl_scheduler.main import default_report_path, generate_schedule
+from pnfl_scheduler.schedulers.types import DEFAULT_SCHEDULER, available_schedulers
+from pnfl_scheduler.writers.writer import available_writer_formats
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,7 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--config",
         type=Path,
         default=None,
-        help="Path to the generate-schedule.ini file. Defaults to the standard search order.",
+        help="Use this INI file instead of the default config lookup",
     )
     parser.add_argument(
         "--scheduler",
@@ -76,10 +76,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _default_report_path(output: Path) -> Path:
-    return output.with_name(f"{output.stem}-report.txt")
-
-
 def _command_line(argv: Sequence[str] | None, prog: str) -> str:
     if argv is None:
         return subprocess.list2cmdline([prog, *sys.argv[1:]])
@@ -101,8 +97,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     fmt = _infer_format(parser, args.output, args.format)
     config_path = args.config or find_config_path()
-    history_path = args.history or DEFAULT_HISTORY_PATH
-    report_path = args.report or _default_report_path(args.output)
+    history_path = args.history or find_history_path()
+    report_path = args.report or default_report_path(args.output)
     seed = args.seed if args.seed is not None else random.randint(0, 1_000_000)
 
     generate_schedule(
@@ -118,3 +114,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         command_line=_command_line(argv, parser.prog),
     )
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

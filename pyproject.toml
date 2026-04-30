@@ -29,14 +29,38 @@ line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "RUF"]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes (unused imports/vars, undefined names)
+    "I",   # isort (import sorting)
+    "B",   # flake8-bugbear (likely bugs)
+    "UP",  # pyupgrade (modernize syntax)
+    "RUF", # ruff-specific
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "E501",   # long assertion messages are common in tests
+    "B905",   # zip(x, x[1:]) without strict= is idiomatic for adjacent-pair iteration in tests
+    "RUF007", # same idiom — itertools.pairwise rewrite is unnecessary churn in tests
+]
 
 [tool.ruff.format]
 quote-style = "double"
 
 [tool.pyright]
 include = ["src", "tests", "scripts"]
-exclude = ["**/*.egg-info", "**/.*", "**/.venv", "**/__pycache__", "**/build", "**/dist", "**/node_modules", "**/output", "**/venv"]
+exclude = [
+    "**/*.egg-info",
+    "**/.*",
+    "**/.venv",
+    "**/__pycache__",
+    "**/build",
+    "**/dist",
+    "**/node_modules",
+    "**/output",
+    "**/venv",
+]
 extraPaths = ["src"]
 typeCheckingMode = "standard"
 reportUnusedImport = "warning"

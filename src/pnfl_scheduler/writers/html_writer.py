@@ -1,12 +1,17 @@
+"""HTML schedule writer (week-by-week and team-by-team navigation pages)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from html import escape
+from os import PathLike
 from pathlib import Path
 from typing import TypeVar
 
 from pnfl_scheduler.domain.league import Team, ordered_teams
 from pnfl_scheduler.domain.schedule import Game, Schedule
+
+StrPath = str | PathLike[str]
 
 T = TypeVar("T")
 
@@ -46,7 +51,10 @@ def _render_nav_links(labels: list[tuple[str, str]], columns: int, width: int) -
     rows: list[str] = []
     for chunk in _chunked(labels, columns):
         rows.append(
-            "".join(f'<A HREF="#{target}">{escape(label)}</A>' + (" " * max(width - len(label), 0)) for target, label in chunk).rstrip()
+            "".join(
+                f'<A HREF="#{target}">{escape(label)}</A>' + (" " * max(width - len(label), 0))
+                for target, label in chunk
+            ).rstrip()
         )
     return rows
 
@@ -57,7 +65,9 @@ def _named_header(name: str, label: str, width: int) -> str:
 
 @dataclass(frozen=True)
 class HtmlScheduleWriter:
-    path: Path | str
+    """Writes a navigation-rich HTML schedule (week-by-week + team-by-team) to `path`."""
+
+    path: StrPath
     league_name: str = "PNFL"
     season_label: str | None = None
 
@@ -114,11 +124,17 @@ class HtmlScheduleWriter:
             right_week = week_pair[1] if len(week_pair) > 1 else None
 
             left_header = _named_header(f"W{left_week}", f"Week {left_week}", col_width)
-            right_header = _named_header(f"W{right_week}", f"Week {right_week}", col_width) if right_week is not None else ""
+            right_header = (
+                _named_header(f"W{right_week}", f"Week {right_week}", col_width) if right_week is not None else ""
+            )
             lines.append(left_header + right_header)
 
             left_games = [_format_week_game(game) for game in games_by_week[left_week]]
-            right_games = [_format_week_game(game) for game in games_by_week.get(right_week, [])] if right_week is not None else []
+            right_games = (
+                [_format_week_game(game) for game in games_by_week.get(right_week, [])]
+                if right_week is not None
+                else []
+            )
             row_count = max(len(left_games), len(right_games))
             for idx in range(row_count):
                 left = left_games[idx] if idx < len(left_games) else ""
@@ -151,7 +167,9 @@ class HtmlScheduleWriter:
                 "",
                 "<h2>Team by Team</h2>",
                 "<h3><a href='#W0'>Go to Week by Week schedule</a></h3>",
-                *_render_nav_links([(f"T{idx}", team.metro) for idx, team in enumerate(teams, start=1)], columns=2, width=34),
+                *_render_nav_links(
+                    [(f"T{idx}", team.metro) for idx, team in enumerate(teams, start=1)], columns=2, width=34
+                ),
                 "",
             ]
         )
@@ -163,11 +181,17 @@ class HtmlScheduleWriter:
             right_anchor = left_anchor + 1 if right_team is not None else None
 
             left_header = _named_header(f"T{left_anchor}", left_team.metro, col_width)
-            right_header = _named_header(f"T{right_anchor}", right_team.metro, col_width) if right_team is not None else ""
+            right_header = (
+                _named_header(f"T{right_anchor}", right_team.metro, col_width) if right_team is not None else ""
+            )
             lines.append(left_header + right_header)
 
             left_games = [_format_team_game(left_team, game) for game in games_by_team[left_team]]
-            right_games = [_format_team_game(right_team, game) for game in games_by_team[right_team]] if right_team is not None else []
+            right_games = (
+                [_format_team_game(right_team, game) for game in games_by_team[right_team]]
+                if right_team is not None
+                else []
+            )
             row_count = max(len(left_games), len(right_games))
             for idx in range(row_count):
                 left = left_games[idx] if idx < len(left_games) else ""
