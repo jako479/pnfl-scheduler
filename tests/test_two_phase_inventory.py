@@ -6,7 +6,7 @@ from pnfl_scheduler.domain.history import NonConfHistory
 from pnfl_scheduler.domain.league import Conference, Division, League, Team
 from pnfl_scheduler.schedulers.fixed_matchup_builder import FIXED_NONCONF_RANK_OPPONENTS, FixedMatchupBuilder
 from pnfl_scheduler.schedulers.types import MatchupPlan, make_matchup
-from tests.conftest import HISTORY_PATH, TEST_SEASON
+from conftest import HISTORY_PATH, TEST_SEASON
 
 
 @pytest.fixture(scope="session")
@@ -65,7 +65,9 @@ def test_phase_one_inventory_has_expected_divisional_and_conference_counts(fixed
             elif team_a.conference == team_b.conference:
                 assert pair_counts[pair] == 1, f"{team_a.metro}/{team_b.metro}: conference pair should appear once"
             else:
-                assert pair_counts[pair] <= 1, f"{team_a.metro}/{team_b.metro}: non-conference pair should appear at most once"
+                assert pair_counts[pair] <= 1, (
+                    f"{team_a.metro}/{team_b.metro}: non-conference pair should appear at most once"
+                )
 
 
 def test_phase_one_inventory_assigns_expected_nonconference_degree(fixed_matchup_plan, league):

@@ -1,14 +1,16 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pnfl-scheduler"
 version = "0.1.0"
 description = "PNFL schedule generator built on Google OR-Tools."
-authors = [{ name = "Brian J" }]
+authors = [{ name = "Brian Jacobs" }]
 readme = "README.md"
-requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.13"
 dependencies = ["ortools>=9.10"]
 
 [project.optional-dependencies]
@@ -16,6 +18,10 @@ dev = ["pytest", "pyright==1.1.409", "ruff", "ipython"]
 
 [project.entry-points."pnfl.commands"]
 generate-schedule = "pnfl_scheduler.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/jako479/pnfl-scheduler"
+Repository = "https://github.com/jako479/pnfl-scheduler"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -26,7 +32,7 @@ addopts = "-ra --strict-markers --strict-config"
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = [
@@ -64,6 +70,6 @@ exclude = [
 extraPaths = ["src"]
 typeCheckingMode = "standard"
 reportUnusedImport = "warning"
-pythonVersion = "3.10"
+pythonVersion = "3.13"
 venvPath = ".."
 venv = ".venv"

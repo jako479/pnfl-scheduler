@@ -7,7 +7,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from pnfl_scheduler.config import find_config_path, find_history_path
+from pnfl_scheduler.config import ConfigError, find_config_path, find_history_path
 from pnfl_scheduler.main import default_report_path, generate_schedule
 from pnfl_scheduler.schedulers.types import DEFAULT_SCHEDULER, available_schedulers
 from pnfl_scheduler.writers.writer import available_writer_formats
@@ -96,23 +96,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     fmt = _infer_format(parser, args.output, args.format)
-    config_path = args.config or find_config_path()
     history_path = args.history or find_history_path()
     report_path = args.report or default_report_path(args.output)
     seed = args.seed if args.seed is not None else random.randint(0, 1_000_000)
 
-    generate_schedule(
-        output=args.output,
-        output_format=fmt,
-        season=args.season,
-        scheduler=args.scheduler,
-        config_path=config_path,
-        history_path=history_path,
-        report_path=report_path,
-        seed=seed,
-        time_limit=args.time_limit,
-        command_line=_command_line(argv, parser.prog),
-    )
+    try:
+        config_path = args.config or find_config_path()
+        generate_schedule(
+            output=args.output,
+            output_format=fmt,
+            season=args.season,
+            scheduler=args.scheduler,
+            config_path=config_path,
+            history_path=history_path,
+            report_path=report_path,
+            seed=seed,
+            time_limit=args.time_limit,
+            command_line=_command_line(argv, parser.prog),
+        )
+    except ConfigError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     return 0
 
 

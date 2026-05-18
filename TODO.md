@@ -14,3 +14,6 @@
 - Consider switching to Pydantic for config handling
 - Consolidate scheduler notes from the schedulers\README.md and several scheduler
   modules
+- Add an end-to-end integration test: run `cli.main()` with a temp config + real
+  history (low `TimeLimit`), assert exit 0 and that the schedule and report output
+  files exist and are non-empty. Gate behind `--all-configs` if the solve is slow.

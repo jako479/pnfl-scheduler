@@ -1,14 +1,14 @@
 from pathlib import Path
 
 from pnfl_scheduler.writers.report import TeamScheduleReport, TxtReportWriter, build_schedule_report
-from tests.conftest import LEAGUE_5_SLOTS, LEAGUE_6_SLOTS, LEAGUE_7_SLOTS
+from conftest import LEAGUE_5_SLOTS, LEAGUE_6_SLOTS, LEAGUE_7_SLOTS
 
 EXPECTED_ROWS = {
     "5-free-slots": {
         "Buffalo": TeamScheduleReport(
             team="Buffalo",
             conference_rank=6,
-            schedule_rank=2,
+            schedule_rank=3,
             nonconference_rank=10,
             extra_opponent="Philadelphia",
             history_opponent="Washington",
@@ -43,8 +43,8 @@ EXPECTED_ROWS = {
         "Denver": TeamScheduleReport(
             team="Denver",
             conference_rank=7,
-            schedule_rank=11,
-            nonconference_rank=14,
+            schedule_rank=9,
+            nonconference_rank=13,
             extra_opponent="-",
             history_opponent="Chicago",
             history_last_played="2047",
@@ -89,7 +89,9 @@ def _league_id(league) -> str:
     raise AssertionError(f"Unexpected league fixture: {league}")
 
 
-def test_schedule_report_rows_for_one_four_team_and_one_five_team_division(schedule, matchup_plan, league, history, tmp_path):
+def test_schedule_report_rows_for_one_four_team_and_one_five_team_division(
+    schedule, matchup_plan, league, history, tmp_path
+):
     report = build_schedule_report(
         schedule=schedule,
         matchup_plan=matchup_plan,

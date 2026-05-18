@@ -93,7 +93,7 @@ def generate_schedule(
     history: NonConfHistory,
     season: int,
     seed: int = 0,
-    time_limit: float = 900.0,
+    time_limit: float = 1800.0,
 ) -> SchedulerResult:
     """Build matchups, then build the final schedule."""
     matchup_plan = MatchupBuilder(

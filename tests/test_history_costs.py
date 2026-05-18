@@ -1,6 +1,6 @@
 from pnfl_scheduler.domain.history import NonConfHistory
 from pnfl_scheduler.domain.league import lookup_team
-from tests.conftest import HISTORY_PATH, TEST_SEASON
+from conftest import HISTORY_PATH, TEST_SEASON
 
 EXPECTED_H2H_COSTS = {
     "Buffalo|Atlanta": -1,
@@ -114,4 +114,7 @@ def test_nonconf_history_file_has_expected_h2h_costs_for_all_pairs(teams):
 
     for key, expected_cost in EXPECTED_H2H_COSTS.items():
         afc_metro, nfc_metro = key.split("|")
-        assert history.opponent_cost(lookup_team(teams, afc_metro), lookup_team(teams, nfc_metro), TEST_SEASON) == expected_cost
+        assert (
+            history.opponent_cost(lookup_team(teams, afc_metro), lookup_team(teams, nfc_metro), TEST_SEASON)
+            == expected_cost
+        )
