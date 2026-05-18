@@ -15,12 +15,12 @@ src/pnfl_scheduler/
 │   ├── schedule.py                 # Schedule, Game, Week
 │   └── history.py                  # NonConfHistory — past inter-conference matchups
 ├── schedulers/
-│   ├── scheduler.py                # single-phase OR-Tools scheduler
+│   ├── scheduler.py                # two-phase-rank scheduler (matchups → weeks)
 │   ├── schedule_builder.py         # CP-SAT model + constraints
-│   ├── matchup_builder.py          # opponent-set generation
-│   ├── fixed_matchup_scheduler.py  # two-phase scheduler (matchups → weeks)
-│   ├── fixed_matchup_builder.py    # phase-one matchup solver
-│   ├── types.py                    # Scheduler protocol, SchedulerResult, registry
+│   ├── matchup_builder.py          # phase-one matchup solver (two-phase-rank)
+│   ├── fixed_matchup_scheduler.py  # fixed-matchup scheduler (matchups → weeks)
+│   ├── fixed_matchup_builder.py    # phase-one matchup solver (fixed-matchup)
+│   ├── types.py                    # SchedulerFunc, SchedulerResult, registry
 │   └── errors.py
 └── writers/
     ├── writer.py                   # ScheduleWriter protocol + factory
@@ -76,7 +76,7 @@ Schedulers register themselves in `schedulers/types.py` so the CLI can list and 
 - `fixed-matchup` (default) — phase one builds the matchup inventory from divisional/conference rules, a fixed non-conference rank table, and history; phase two assigns each matchup to a week.
 - `two-phase-rank` — phase one selects all non-conference matchups with a rank-only CP-SAT model that gives higher-ranked teams harder slates; phase two assigns weeks.
 
-Both are two-phase, implement the `Scheduler` protocol, and return a `SchedulerResult` with the schedule and the matchup plan.
+Both are two-phase `generate_schedule` functions matching the `SchedulerFunc` signature, and return a `SchedulerResult` with the schedule and the matchup plan.
 
 ## Testing
 
