@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import random
 import subprocess
 import sys
@@ -11,6 +12,8 @@ from pnfl_scheduler.config import ConfigError, find_config_path, find_history_pa
 from pnfl_scheduler.main import default_report_path, generate_schedule
 from pnfl_scheduler.schedulers.types import DEFAULT_SCHEDULER, available_schedulers
 from pnfl_scheduler.writers.writer import available_writer_formats
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -94,6 +97,10 @@ def _infer_format(parser: argparse.ArgumentParser, output: Path, output_format: 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)s: %(message)s",
+    )
 
     fmt = _infer_format(parser, args.output, args.format)
     history_path = args.history or find_history_path()
@@ -115,7 +122,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             command_line=_command_line(argv, parser.prog),
         )
     except ConfigError as error:
-        print(f"error: {error}", file=sys.stderr)
+        logger.error(str(error))
         return 1
     return 0
 

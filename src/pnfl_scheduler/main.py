@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from os import PathLike
 from pathlib import Path
@@ -11,6 +12,8 @@ from pnfl_scheduler.domain.history import NonConfHistory
 from pnfl_scheduler.schedulers.types import DEFAULT_SCHEDULER, SchedulerResult, get_scheduler
 from pnfl_scheduler.writers.report import TxtReportWriter, build_schedule_report
 from pnfl_scheduler.writers.writer import get_writer
+
+logger = logging.getLogger(__name__)
 
 StrPath = str | PathLike[str]
 
@@ -69,5 +72,11 @@ def generate_schedule(
         command_line=command_line,
     )
     TxtReportWriter(report_path).write(report)
-    print(f"Generated {len(result.schedule.games)} games -> {output}; report -> {report_path} (seed {seed})")
+    logger.info(
+        "Generated %d games -> %s; report -> %s (seed %d)",
+        len(result.schedule.games),
+        output,
+        report_path,
+        seed,
+    )
     return result

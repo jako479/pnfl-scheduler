@@ -60,18 +60,20 @@ def test_main_errors_on_unknown_output_format() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_main_errors_when_explicit_config_missing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    exit_code = main(
-        ["--output", str(tmp_path / "schedule.txt"), "--season", "2026", "--config", str(tmp_path / "missing.ini")]
-    )
+def test_main_errors_when_explicit_config_missing(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level("ERROR"):
+        exit_code = main(
+            ["--output", str(tmp_path / "schedule.txt"), "--season", "2026", "--config", str(tmp_path / "missing.ini")]
+        )
     assert exit_code == 1
-    assert "error" in capsys.readouterr().err.lower()
+    assert any(r.levelname == "ERROR" for r in caplog.records)
 
 
 def test_main_errors_when_no_config_found(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setattr(config, "CONFIG_CANDIDATES", [tmp_path / "generate-schedule.ini"])
-    exit_code = main(["--output", str(tmp_path / "schedule.txt"), "--season", "2026"])
+    with caplog.at_level("ERROR"):
+        exit_code = main(["--output", str(tmp_path / "schedule.txt"), "--season", "2026"])
     assert exit_code == 1
-    assert "error" in capsys.readouterr().err.lower()
+    assert any(r.levelname == "ERROR" for r in caplog.records)
