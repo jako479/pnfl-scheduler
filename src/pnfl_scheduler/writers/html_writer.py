@@ -6,17 +6,14 @@ from dataclasses import dataclass
 from html import escape
 from os import PathLike
 from pathlib import Path
-from typing import TypeVar
 
 from pnfl_scheduler.domain.league import Team, ordered_teams
 from pnfl_scheduler.domain.schedule import Game, Schedule
 
 StrPath = str | PathLike[str]
 
-T = TypeVar("T")
 
-
-def _chunked(items: list[T], size: int) -> list[list[T]]:
+def _chunked[T](items: list[T], size: int) -> list[list[T]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 

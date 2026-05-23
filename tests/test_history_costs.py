@@ -1,6 +1,7 @@
+from conftest import HISTORY_PATH, TEST_SEASON
+
 from pnfl_scheduler.domain.history import NonConfHistory
 from pnfl_scheduler.domain.league import lookup_team
-from conftest import HISTORY_PATH, TEST_SEASON
 
 EXPECTED_H2H_COSTS = {
     "Buffalo|Atlanta": -1,

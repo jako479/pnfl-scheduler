@@ -1,12 +1,12 @@
 from collections import Counter
 
 import pytest
+from conftest import HISTORY_PATH, TEST_SEASON
 
 from pnfl_scheduler.domain.history import NonConfHistory
 from pnfl_scheduler.domain.league import Conference, Division, League, Team
 from pnfl_scheduler.schedulers.fixed_matchup_builder import FIXED_NONCONF_RANK_OPPONENTS, FixedMatchupBuilder
 from pnfl_scheduler.schedulers.types import MatchupPlan, make_matchup
-from conftest import HISTORY_PATH, TEST_SEASON
 
 
 @pytest.fixture(scope="session")

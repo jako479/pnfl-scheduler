@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from pnfl_scheduler.writers.report import TeamScheduleReport, TxtReportWriter, build_schedule_report
 from conftest import LEAGUE_5_SLOTS, LEAGUE_6_SLOTS, LEAGUE_7_SLOTS
+
+from pnfl_scheduler.writers.report import TeamScheduleReport, TxtReportWriter, build_schedule_report
 
 EXPECTED_ROWS = {
     "5-free-slots": {
